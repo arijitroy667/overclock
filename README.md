@@ -9,7 +9,10 @@ Personal OS for the ADHD brain. Product spec: [prd.md](prd.md) (§15 is the curr
 - [x] `packages/types` — API shapes shared by both apps
 - [x] Clerk sign-in on web + mobile; API verifies session tokens (JWKS + `azp`)
 - [x] Instant capture (reframe runs in the background), Settings: disclaimer, data export, account deletion
-- [ ] Development build for system notifications on Android, web push / server-side reminder scheduler, infra (Terraform, CI)
+- [x] Alembic migrations (applied automatically on API startup)
+- [x] Comfort preferences synced across devices: calm mode, easier-to-read font (Lexend), reminder timing
+- [x] Development-build config (`expo-dev-client`, `eas.json`) for system notifications on Android
+- [ ] Web push / server-side reminder scheduler, infra (Terraform, CI) — Phase 2+
 
 ## Run the API
 ```sh
@@ -23,7 +26,21 @@ uv run uvicorn app.main:app --env-file .env --reload --host 0.0.0.0   # docs at 
 cd apps/mobile
 npx expo start       # scan the QR with Expo Go; settings in .env.local
 ```
-Local reminders work in Expo Go; remote push will need a development build.
+In **Expo Go on Android**, system notifications are skipped (Expo Go no longer ships them); the in-app timer and body checks still work.
+For notifications, install a **development build** once, then keep using `npx expo start` as usual:
+```sh
+npx eas-cli@latest login                                  # free Expo account
+npx eas-cli@latest build --profile development --platform android   # cloud build → install the APK on your phone
+# or, with Android Studio installed:  npx expo run:android
+```
+
+## Database changes
+```sh
+cd services/api
+# edit app/db.py, then:
+uv run alembic revision --autogenerate -m "what changed"
+uv run alembic upgrade head      # the API also runs this on startup
+```
 
 ## Run the web dashboard
 ```sh
