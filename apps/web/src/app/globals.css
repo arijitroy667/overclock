@@ -27,6 +27,28 @@
   }
 }
 
+/* Calm mode (§17): same layout, fewer and quieter colors, no motion. */
+:root[data-calm="true"] {
+  --accent: #66758a;
+  --soft: #eceef1;
+  --warm: #8a9099;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-calm="true"] {
+    --accent: #8e9aad;
+    --soft: #23272e;
+    --warm: #9aa0a8;
+  }
+}
+:root[data-calm="true"] * { transition: none !important; animation: none !important; }
+
+:root[data-font="dyslexia"] body {
+  font-family: var(--font-lexend), system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  word-spacing: 0.08em;
+  line-height: 1.6;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-card: var(--card);

@@ -4,8 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 
 import { api } from "@/lib/api";
+import { cachedPrefs } from "@/lib/prefs";
 
-const WARNINGS_MIN = [15, 10, 5]; // §7 Pillar 2 default pre-warnings
 const GUARDRAIL_REPEAT_MIN = 30;
 
 export default function FocusPage() {
@@ -49,7 +49,7 @@ function Focus() {
     if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission();
 
     // Transition nudges are skipped once in flow; the body-check overlay always shows.
-    WARNINGS_MIN.filter((w) => w < total).forEach((w) => at(total - w, () => !inFlowRef.current && notify(`${w} minutes left`, title)));
+    cachedPrefs().reminder_offsets.filter((w) => w < total).forEach((w) => at(total - w, () => !inFlowRef.current && notify(`${w} minutes left`, title)));
     at(total, () => !inFlowRef.current && notify("Time’s up", "Wrap up or keep going. Your call."));
 
     return () => {

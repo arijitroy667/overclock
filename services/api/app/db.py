@@ -33,6 +33,7 @@ class User(Base):
     timezone: Mapped[str] = mapped_column(default="UTC")
     created_at: Mapped[datetime] = mapped_column(default=now)
     onboarding_profile: Mapped[dict] = mapped_column(JSON, default=dict)
+    preferences: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")  # calm mode, font, reminder offsets
     disclaimer_accepted_at: Mapped[datetime | None]
 
 

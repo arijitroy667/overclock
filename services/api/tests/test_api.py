@@ -1,5 +1,6 @@
 import os
 
+os.environ["MIGRATE_ON_STARTUP"] = "0"  # tests build the schema from the models directly
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://overclock:overclock@localhost:5433/overclock_test")
 
 import pytest
@@ -130,3 +131,11 @@ def test_clerk_token_verification(monkeypatch):
             check(**bad)
     with pytest.raises(HTTPException):
         main._user_id_from(SimpleNamespace(headers={}))
+
+
+def test_preferences(client):
+    assert client.get("/api/v1/me", headers=h()).json()["preferences"] == {"calm_mode": False, "dyslexia_font": False, "reminder_offsets": [15, 10, 5]}
+    prefs = client.patch("/api/v1/me/preferences", json={"calm_mode": True, "reminder_offsets": [5, 30, 5]}, headers=h()).json()
+    assert prefs == {"calm_mode": True, "dyslexia_font": False, "reminder_offsets": [30, 5]}  # merged, deduped, sorted
+    assert client.patch("/api/v1/me/preferences", json={"reminder_offsets": [0]}, headers=h()).status_code == 422
+    assert client.get("/api/v1/me", headers=h()).json()["preferences"]["calm_mode"] is True

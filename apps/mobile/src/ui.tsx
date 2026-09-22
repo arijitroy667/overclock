@@ -27,10 +27,10 @@ export function Card({ children, style }: { children: ReactNode; style?: ViewSty
 export function T({ kind = 'body', style, ...props }: TextProps & { kind?: 'title' | 'h2' | 'body' | 'muted' }) {
   const t = useTheme();
   const s = {
-    title: { fontSize: 26, fontWeight: '700' as const, color: t.text },
-    h2: { fontSize: 19, fontWeight: '600' as const, color: t.text },
-    body: { fontSize: 16, color: t.text, lineHeight: 22 },
-    muted: { fontSize: 14, color: t.muted, lineHeight: 20 },
+    title: { fontSize: 26, fontWeight: '700' as const, color: t.text, fontFamily: t.fontBold },
+    h2: { fontSize: 19, fontWeight: '600' as const, color: t.text, fontFamily: t.fontBold },
+    body: { fontSize: 16, color: t.text, lineHeight: t.font ? 25 : 22, fontFamily: t.font },
+    muted: { fontSize: 14, color: t.muted, lineHeight: t.font ? 22 : 20, fontFamily: t.font },
   }[kind];
   return <Text {...props} style={[s, style]} />;
 }
@@ -51,7 +51,7 @@ export function Button({
         { backgroundColor: primary ? t.accent : t.soft, opacity: disabled ? 0.5 : pressed ? 0.8 : 1 },
       ]}
     >
-      <Text style={{ color: primary ? t.accentText : t.text, fontSize: 16, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: primary ? t.accentText : t.text, fontSize: 16, fontWeight: '600', fontFamily: t.fontBold }}>{label}</Text>
     </Pressable>
   );
 }

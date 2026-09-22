@@ -1,11 +1,13 @@
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
+import { Lexend_400Regular, Lexend_600SemiBold, useFonts } from '@expo-google-fonts/lexend';
 import { router, Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
 import { api, flushQueue, setTokenGetter } from '@/api';
 import { Notifications } from '@/notifications';
+import { PrefsProvider } from '@/prefs';
 import { useTheme } from '@/theme';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -21,10 +23,22 @@ Notifications?.setNotificationHandler({
 });
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({ Lexend_400Regular, Lexend_600SemiBold });
+  if (!fontsLoaded) return null;
   return (
     <ClerkProvider publishableKey={publishableKey!} tokenCache={tokenCache}>
-      <AppStack />
+      <SignedInPrefs />
     </ClerkProvider>
+  );
+}
+
+function SignedInPrefs() {
+  const { isSignedIn } = useAuth();
+  // Remount on sign-in/out so preferences load for the account that's signed in.
+  return (
+    <PrefsProvider key={String(isSignedIn)}>
+      <AppStack />
+    </PrefsProvider>
   );
 }
 

@@ -1,9 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-import type { Insights, Me, Task } from '../../../packages/types';
+import type { Insights, Me, Preferences, Task } from '../../../packages/types';
 
-export type { Insights, Me, Task };
+export type { Insights, Me, Preferences, Task };
 
 /** Reframing runs in the background right after capture; allow ~30s before treating it as "no reframe". */
 export const isReframing = (t: Task) => !t.reframed_title && Date.now() - new Date(t.captured_at).getTime() < 30_000;
@@ -83,6 +83,7 @@ export const api = {
     req(`/focus-sessions/${id}/guardrail-ack`, { method: 'POST', body: { kind } }),
   logEnergy: (energy_level: number) => req('/energy-logs', { method: 'POST', body: { energy_level } }),
   insights: () => req<Insights>('/insights/weekly'),
+  setPreferences: (body: Partial<Preferences>) => req<Preferences>('/me/preferences', { method: 'PATCH', body }),
   exportData: () => req<unknown>('/me/export'),
   deleteAccount: () => req('/me', { method: 'DELETE' }),
 };

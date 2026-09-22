@@ -5,10 +5,10 @@ import Svg, { Circle } from 'react-native-svg';
 
 import { api } from '@/api';
 import { Notifications, notifyIn } from '@/notifications';
+import { usePrefs } from '@/prefs';
 import { space, useTheme } from '@/theme';
 import { Button, Card, Screen, T } from '@/ui';
 
-const WARNINGS_MIN = [15, 10, 5]; // §7 Pillar 2 default pre-warnings
 const GUARDRAIL_REPEAT_MIN = 30; // escalate: after the first check-in, ask again every 30 min
 
 export default function Focus() {
@@ -21,6 +21,8 @@ export default function Focus() {
   const [guardrailAt, setGuardrailAt] = useState(120);
   const [inFlow, setInFlow] = useState(false);
   const transitionIds = useRef<string[]>([]);
+  const { prefs } = usePrefs();
+  const offsets = prefs.reminder_offsets;
 
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 1000);
@@ -32,7 +34,7 @@ export default function Focus() {
       setGuardrailAt(session.guardrail_after_minutes);
       if (!Notifications || !(await Notifications.requestPermissionsAsync()).granted) return;
       const ids = await Promise.all([
-        ...WARNINGS_MIN.filter((w) => w < total).map((w) => notifyIn(total - w, `${w} minutes left`, title)),
+        ...offsets.filter((w) => w < total).map((w) => notifyIn(total - w, `${w} minutes left`, title)),
         notifyIn(total, "Time's up", 'Wrap up or keep going. Your call.'),
       ]);
       transitionIds.current = ids.filter((x): x is string => x !== null);
@@ -46,7 +48,7 @@ export default function Focus() {
       clearInterval(tick);
       Notifications?.cancelAllScheduledNotificationsAsync();
     };
-  }, [id, title, total]);
+  }, [id, title, total]); // eslint-disable-line react-hooks/exhaustive-deps -- schedule once per visit
 
   const elapsedMin = (now - startedAt) / 60000;
   const remaining = total - elapsedMin;
@@ -93,7 +95,7 @@ export default function Focus() {
       <Button label="Done" onPress={() => leave(true)} />
       <Button kind="quiet" label="Step away (it'll be here)" onPress={() => leave(false)} />
 
-      <Modal visible={elapsedMin >= guardrailAt} animationType="fade" onRequestClose={() => {}}>
+      <Modal visible={elapsedMin >= guardrailAt} animationType={t.calm ? 'none' : 'fade'} onRequestClose={() => {}}>
         <Screen>
           <T kind="title">Quick body check</T>
           <T>You’ve been deep in this for {Math.round(elapsedMin)} minutes. Nice. Take one small thing for your body, then dive back in.</T>

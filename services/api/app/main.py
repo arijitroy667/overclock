@@ -1,21 +1,25 @@
 """Overclock core API — PRD §14, MVP scope from §15."""
+import asyncio
 import logging
 import os
 from collections import Counter, defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 import jwt
 import redis.asyncio as aioredis
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
 from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import motivator
-from .db import Base, EnergyLog, FocusSession, Session, Subtask, Task, User, engine, now
+from .db import EnergyLog, FocusSession, Session, Subtask, Task, User, now
 
 log = logging.getLogger(__name__)
 
@@ -37,10 +41,16 @@ _redis = aioredis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0
 async def lifespan(_: FastAPI):
     if DEV_AUTH_USER:
         log.warning("DEV_AUTH_USER is set — authentication is DISABLED. Never set this outside local dev.")
-    # ponytail: create_all instead of Alembic; add migrations before the first deployed schema change
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    if os.environ.get("MIGRATE_ON_STARTUP", "1") == "1":
+        # ponytail: fine for one instance; with several replicas run `alembic upgrade head` as a deploy step instead.
+        await asyncio.to_thread(_migrate)
     yield
+
+
+def _migrate() -> None:
+    cfg = AlembicConfig(str(Path(__file__).parent.parent / "alembic.ini"))
+    cfg.attributes["configure_logger"] = False
+    alembic_command.upgrade(cfg, "head")
 
 
 app = FastAPI(title="Overclock API", lifespan=lifespan)
@@ -164,6 +174,25 @@ class EnergyIn(BaseModel):
     energy_level: int = Field(ge=1, le=5)
     mood_tag: str | None = Field(None, max_length=40)
     optional_medication_note: str | None = Field(None, max_length=200)
+
+
+class Preferences(BaseModel):
+    calm_mode: bool = False  # §17: less color and motion for overwhelm moments
+    dyslexia_font: bool = False  # §17
+    reminder_offsets: list[int] = Field([15, 10, 5], max_length=5)  # §7 Pillar 2: minutes before a boundary
+
+    @field_validator("reminder_offsets")
+    @classmethod
+    def _offsets(cls, v: list[int]) -> list[int]:
+        if any(not 1 <= m <= 120 for m in v):
+            raise ValueError("reminders must be 1-120 minutes before")
+        return sorted(set(v), reverse=True)
+
+
+class PreferencesPatch(BaseModel):
+    calm_mode: bool | None = None
+    dyslexia_font: bool | None = None
+    reminder_offsets: list[int] | None = None
 
 
 class OnboardingIn(BaseModel):
@@ -387,7 +416,19 @@ async def get_me(me: Me):
     return {
         "id": me.id, "display_name": me.display_name, "timezone": me.timezone,
         "onboarded": me.disclaimer_accepted_at is not None, "disclaimer": DISCLAIMER,
+        "preferences": Preferences(**me.preferences or {}).model_dump(),
     }
+
+
+@api.patch("/me/preferences")
+async def set_preferences(body: PreferencesPatch, me: Me, db: Db):
+    try:
+        prefs = Preferences(**{**(me.preferences or {}), **body.model_dump(exclude_none=True)})
+    except ValidationError as e:
+        raise HTTPException(422, e.errors()[0]["msg"])
+    me.preferences = prefs.model_dump()
+    await db.commit()
+    return me.preferences
 
 
 @api.post("/me/onboarding")

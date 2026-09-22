@@ -23,5 +23,6 @@ export type Insights = {
   xp_daily_cap: number;
   energy_by_day: Record<string, number>;
 };
-export type Me = { id: string; onboarded: boolean; disclaimer: string };
+export type Preferences = { calm_mode: boolean; dyslexia_font: boolean; reminder_offsets: number[] };
+export type Me = { id: string; onboarded: boolean; disclaimer: string; preferences: Preferences };
 
