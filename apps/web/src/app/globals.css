@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+/* Same constrained token set as apps/mobile/src/theme.ts: calm, no alarm-red. */
+:root {
+  --bg: #f7f6f2;
+  --card: #ffffff;
+  --text: #1f2328;
+  --muted: #6b7075;
+  --accent: #3a6ff7;
+  --accent-text: #ffffff;
+  --soft: #e9eefd;
+  --border: #e3e1da;
+  --warm: #e8a33d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --card: #1d2026;
+    --text: #ecedee;
+    --muted: #9ba1a6;
+    --accent: #7b9dff;
+    --accent-text: #0e1116;
+    --soft: #252c3d;
+    --border: #2c3038;
+    --warm: #f0b35a;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-soft: var(--soft);
+  --color-border: var(--border);
+  --color-warm: var(--warm);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
