@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import db, main, motivator
+from app import reflection as reflection_agent
 
 
 async def _reset():
@@ -32,6 +33,15 @@ def client(monkeypatch):
                                  subtasks=["a", "b"], estimated_minutes=20)
 
     monkeypatch.setattr(motivator, "reframe", fake_reframe)
+
+    calls = []
+
+    async def fake_summary(metrics):
+        calls.append(metrics)
+        return f"Nice week. {len(calls)}"
+
+    monkeypatch.setattr(reflection_agent, "summarize", fake_summary)
+    main.reflection_calls = calls
     with TestClient(main.app) as c:
         c.portal.call(_reset)
         yield c
@@ -139,3 +149,43 @@ def test_preferences(client):
     assert prefs == {"calm_mode": True, "dyslexia_font": False, "reminder_offsets": [30, 5]}  # merged, deduped, sorted
     assert client.patch("/api/v1/me/preferences", json={"reminder_offsets": [0]}, headers=h()).status_code == 422
     assert client.get("/api/v1/me", headers=h()).json()["preferences"]["calm_mode"] is True
+
+
+def test_choose_lever_learns_then_explores():
+    import random
+
+    from app.motivator import LEVERS, choose_lever
+
+    class Rng(random.Random):
+        """Fixed explore/exploit roll; .choice() delegates, since overriding random() would freeze it."""
+
+        def __init__(self, roll):
+            super().__init__()
+            self.roll = roll
+            self.inner = random.Random(7)
+
+        def random(self): return self.roll
+        def choice(self, seq): return self.inner.choice(seq)
+
+    exploit, explore = Rng(0.99), Rng(0.0)
+
+    # Under-sampled levers come first, so every lever gets a fair trial.
+    assert choose_lever({}) == LEVERS[0]
+    assert choose_lever({LEVERS[0]: (1, 4)}) == LEVERS[1]
+
+    # With enough data it picks the lever that actually gets tasks finished...
+    tried = {lever: (0, 10) for lever in LEVERS} | {"play": (9, 10)}  # (started, reframed)
+    assert choose_lever(tried, exploit) == "play"
+    # ...and the explore branch still samples the others, so a stale winner can be overtaken.
+    assert len({choose_lever(tried, explore) for _ in range(40)}) > 1
+
+
+def test_weekly_reflection_is_written_once(client):
+    task = client.post("/api/v1/tasks/capture", json={"text": "water the plants"}, headers=h()).json()
+    client.post(f"/api/v1/tasks/{task['id']}/complete", json={}, headers=h())
+    first = client.get("/api/v1/insights/reflection", headers=h()).json()
+    assert first["text"] == "Nice week. 1"
+    assert client.get("/api/v1/insights/reflection", headers=h()).json()["text"] == "Nice week. 1"  # cached, no second call
+    assert client.get("/api/v1/insights/reflection?regenerate=true", headers=h()).json()["text"] == "Nice week. 2"
+    assert main.reflection_calls[-1]["levers"]  # the agent sees which levers got tasks started
+    assert client.get("/api/v1/me/export", headers=h()).json()["reflections"][0]["generated_text"] == "Nice week. 2"

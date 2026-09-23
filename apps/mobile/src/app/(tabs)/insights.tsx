@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 
 import { api, Insights as Data } from '@/api';
@@ -9,7 +9,9 @@ import { Card, Screen, T } from '@/ui';
 export default function Insights() {
   const t = useTheme();
   const [data, setData] = useState<Data | null>(null);
+  const [reflection, setReflection] = useState<string | null>(null);
   useFocusEffect(useCallback(() => { api.insights().then(setData).catch(() => {}); }, []));
+  useEffect(() => { api.reflection().then((r) => setReflection(r.text)).catch(() => {}); }, []);
 
   if (!data) return <Screen><T kind="muted">Loading…</T></Screen>;
 
@@ -18,6 +20,12 @@ export default function Insights() {
   return (
     <Screen>
       <T kind="title">Your week</T>
+      {reflection && (
+        <Card>
+          <T kind="h2">Your week, in words</T>
+          <T>{reflection}</T>
+        </Card>
+      )}
       <Card>
         <T kind="h2">Showed up {data.days_active_this_week} of the last 7 days</T>
         <T kind="muted">{data.days_active_total} days total. Gaps don’t reset anything. Pick up wherever you are.</T>

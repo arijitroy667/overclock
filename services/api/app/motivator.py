@@ -4,12 +4,13 @@ MVP per §15: one Gemini call per task, static lever rotation, no personalizatio
 ponytail: plain SDK call, not LangGraph — move into services/agents as a graph when Planner/Reflection land (Phase 2).
 """
 import logging
+import random
 import re
 from statistics import median
 from typing import Literal
 
 from google import genai
-from google.genai import errors, types
+from google.genai import types
 from pydantic import BaseModel, Field
 
 log = logging.getLogger(__name__)
@@ -65,8 +66,30 @@ def strip_pii(text: str) -> str:
 
 
 def pick_lever(task_count: int) -> str:
-    """Static rotation — keeps novelty up and gives the Phase 2 learner even data per lever."""
+    """Static rotation — used until a user has enough history for choose_lever."""
     return LEVERS[task_count % len(LEVERS)]
+
+
+MIN_TRIALS = 4  # per lever before we trust its rate
+EXPLORE = 0.2  # keep sampling the others, so a lever that stops working can be overtaken
+
+
+def choose_lever(stats: dict[str, tuple[int, int]], rng: random.Random | None = None) -> str:
+    """Pick the PINCH lever that actually gets this user started (§7 Pillar 1 learning loop).
+
+    stats maps lever -> (started, reframed). Under-sampled levers come first, then it mostly
+    exploits the best start rate and sometimes explores.
+    ponytail: per-user rates over the task table, not pgvector RAG (§11) — add embeddings when
+    lever choice needs to depend on what the task is about, not just on the user.
+    """
+    rng = rng or random
+    counts = {lever: stats.get(lever, (0, 0)) for lever in LEVERS}
+    untried = [lever for lever, (_, tried) in counts.items() if tried < MIN_TRIALS]
+    if untried:
+        return min(untried, key=lambda lever: counts[lever][1])
+    if rng.random() < EXPLORE:
+        return rng.choice(LEVERS)
+    return max(LEVERS, key=lambda lever: counts[lever][0] / counts[lever][1])
 
 
 async def reframe(text: str, lever: str) -> Reframe | None:
@@ -83,7 +106,7 @@ async def reframe(text: str, lever: str) -> Reframe | None:
                 automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),  # no tools here
             ),
         )
-    except (errors.APIError, ValueError) as e:  # ValueError: no API key configured
+    except Exception as e:  # incl. timeouts and a missing API key — a capture must never be lost
         log.warning("reframe failed: %s", e)
         return None
     if not isinstance(resp.parsed, Reframe):

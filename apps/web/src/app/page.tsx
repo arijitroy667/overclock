@@ -177,8 +177,18 @@ function TaskCard({ task, onChange }: { task: Task; onChange: () => void }) {
 
 function InsightsPanel({ data }: { data: Insights }) {
   const energy = Object.entries(data.energy_by_day);
+  const [reflection, setReflection] = useState<string | null>(null);
+
+  useEffect(() => { api.reflection().then((r) => setReflection(r.text)).catch(() => {}); }, []);
+
   return (
     <div className="flex flex-col gap-4">
+      {reflection && (
+        <Card>
+          <h2 className="font-semibold">Your week, in words</h2>
+          <p className="text-sm">{reflection}</p>
+        </Card>
+      )}
       <Card>
         <h2 className="font-semibold">Showed up {data.days_active_this_week} of the last 7 days</h2>
         <p className="text-sm text-muted">{data.days_active_total} days total. Gaps don’t reset anything.</p>

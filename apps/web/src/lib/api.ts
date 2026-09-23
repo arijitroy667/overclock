@@ -69,6 +69,7 @@ export const api = {
   logEnergy: (energy_level: number) => req("/energy-logs", { method: "POST", body: { energy_level } }),
   insights: () => req<Insights>("/insights/weekly"),
   setPreferences: (body: Partial<Preferences>) => req<Preferences>("/me/preferences", { method: "PATCH", body }),
+  reflection: () => req<{ week_start: string; text: string }>("/insights/reflection"),
   exportData: () => req<unknown>("/me/export"),
   deleteAccount: () => req("/me", { method: "DELETE" }),
 };

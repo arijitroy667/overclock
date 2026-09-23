@@ -15,11 +15,12 @@ from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import motivator
-from .db import EnergyLog, FocusSession, Session, Subtask, Task, User, now
+from . import reflection as reflection_agent
+from .db import EnergyLog, FocusSession, ReflectionSummary, Session, Subtask, Task, User, now
 
 log = logging.getLogger(__name__)
 
@@ -211,11 +212,31 @@ async def _own_task(db: AsyncSession, me: User, task_id: str) -> Task:
     return task
 
 
+STARTED = ("in_progress", "done")
+
+
+async def _lever_stats(db: AsyncSession, user_id: str) -> dict[str, tuple[int, int]]:
+    """Per-lever (started, reframed) — did this framing actually get the user moving (§9 KPI 2)?
+
+    Every reframed task counts in the denominator, including ones still sitting in the inbox:
+    a lever that never gets you started has to be able to look bad.
+    """
+    rows = (await db.execute(
+        select(
+            Task.applied_pinch_lever,
+            func.sum(case((Task.status.in_(STARTED), 1), else_=0)),
+            func.count(),
+        ).where(Task.user_id == user_id, Task.applied_pinch_lever.is_not(None))
+        .group_by(Task.applied_pinch_lever)
+    )).all()
+    return {lever: (int(started), total) for lever, started, total in rows}
+
+
 async def _apply_reframe(db: AsyncSession, me: User, task: Task) -> None:
-    n = await db.scalar(select(func.count()).select_from(Task).where(Task.user_id == me.id))
-    lever = motivator.pick_lever(n)
-    if lever == task.applied_pinch_lever:  # re-reframe: always try a different lever
-        lever = motivator.pick_lever(n + 1)
+    lever = motivator.choose_lever(await _lever_stats(db, me.id))
+    if lever == task.applied_pinch_lever:  # re-reframe: always try a different angle
+        n = await db.scalar(select(func.count()).select_from(Task).where(Task.user_id == me.id))
+        lever = motivator.pick_lever(n)
     r = await motivator.reframe(task.raw_input_text, lever)
     if not r:
         return
@@ -368,6 +389,10 @@ async def log_energy(body: EnergyIn, me: Me, db: Db):
 
 @api.get("/insights/weekly")
 async def weekly(me: Me, db: Db):
+    return await _weekly_metrics(me, db)
+
+
+async def _weekly_metrics(me: User, db: AsyncSession) -> dict:
     tz = ZoneInfo(me.timezone)
     since = now() - timedelta(days=7)
     captured = (await db.scalars(select(Task).where(Task.user_id == me.id, Task.captured_at >= since))).all()
@@ -401,6 +426,31 @@ async def weekly(me: Me, db: Db):
         "xp_daily_cap": DAILY_XP_CAP,
         "energy_by_day": {d: round(sum(v) / len(v), 1) for d, v in sorted(by_day.items())},
     }
+
+
+@api.get("/insights/reflection")
+async def reflection(me: Me, db: Db, regenerate: bool = False):
+    """One plain-language summary per week, written once and then reused."""
+    tz = ZoneInfo(me.timezone)
+    today = now().astimezone(tz).date()
+    week_start = today - timedelta(days=today.weekday())  # Monday
+    existing = await db.scalar(
+        select(ReflectionSummary).where(ReflectionSummary.user_id == me.id, ReflectionSummary.week_start == week_start)
+    )
+    if existing and not regenerate:
+        return {"week_start": week_start, "text": existing.generated_text}
+
+    metrics = await _weekly_metrics(me, db)
+    metrics["levers"] = {lever: {"started": started, "reframed": total} for lever, (started, total) in (await _lever_stats(db, me.id)).items()}
+    text = await reflection_agent.summarize(metrics)
+    if not text:
+        raise HTTPException(503, "Couldn’t write your reflection just now. Try again in a bit.")
+    if existing:
+        existing.generated_text, existing.metrics_snapshot = text, metrics
+    else:
+        db.add(ReflectionSummary(user_id=me.id, week_start=week_start, generated_text=text, metrics_snapshot=metrics))
+    await db.commit()
+    return {"week_start": week_start, "text": text}
 
 
 # ---------- account: onboarding, export, deletion (§8, §16) ----------
@@ -457,6 +507,7 @@ async def export(me: Me, db: Db):
         "subtasks": rows([s for t in tasks for s in t.subtasks]),
         "focus_sessions": rows((await db.scalars(select(FocusSession).where(FocusSession.user_id == me.id))).all()),
         "energy_logs": rows((await db.scalars(select(EnergyLog).where(EnergyLog.user_id == me.id))).all()),
+        "reflections": rows((await db.scalars(select(ReflectionSummary).where(ReflectionSummary.user_id == me.id))).all()),
     }
 
 
@@ -466,6 +517,7 @@ async def delete_me(me: Me, db: Db):
     for stmt in (
         delete(Subtask).where(Subtask.task_id.in_(task_ids)),
         delete(FocusSession).where(FocusSession.user_id == me.id),
+        delete(ReflectionSummary).where(ReflectionSummary.user_id == me.id),
         delete(EnergyLog).where(EnergyLog.user_id == me.id),
         delete(Task).where(Task.user_id == me.id),
         delete(User).where(User.id == me.id),

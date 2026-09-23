@@ -1,9 +1,9 @@
-"""Core entities from PRD §13 (MVP subset: no FocusRoom / ReflectionSummary / PersonalizationMemory yet)."""
+"""Core entities from PRD §13 (no FocusRoom / PersonalizationMemory yet)."""
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -22,7 +22,7 @@ def new_id() -> str:
 
 
 class Base(DeclarativeBase):
-    type_annotation_map = {datetime: DateTime(timezone=True)}
+    type_annotation_map = {datetime: DateTime(timezone=True), date: Date()}
 
 
 class User(Base):
@@ -82,6 +82,18 @@ class FocusSession(Base):
     ended_at: Mapped[datetime | None]
     interruption_count: Mapped[int] = mapped_column(default=0)
     guardrail_prompts_triggered: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class ReflectionSummary(Base):
+    """One plain-language weekly summary per user (§7 Pillar 10, Reflection agent)."""
+    __tablename__ = "reflection_summaries"
+    id: Mapped[str] = mapped_column(primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    week_start: Mapped[date]
+    generated_text: Mapped[str] = mapped_column(Text)
+    metrics_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(default=now)
+    __table_args__ = (UniqueConstraint("user_id", "week_start"),)
 
 
 class EnergyLog(Base):
