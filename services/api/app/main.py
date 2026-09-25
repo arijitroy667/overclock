@@ -13,7 +13,7 @@ import jwt
 import redis.asyncio as aioredis
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
-from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,9 +77,17 @@ def _user_id_from(request: Request) -> str:
     if DEV_AUTH_USER:
         return DEV_AUTH_USER
     header = request.headers.get("authorization", "")
-    if not _jwks or not header.startswith("Bearer "):
+    if not header.startswith("Bearer "):
         raise HTTPException(401, "Not signed in")
-    token = header.removeprefix("Bearer ")
+    return _user_id_from_token(header.removeprefix("Bearer "))
+
+
+def _user_id_from_token(token: str) -> str:
+    """Shared by HTTP and the room WebSocket, which carries its token in the query string."""
+    if DEV_AUTH_USER:
+        return DEV_AUTH_USER
+    if not _jwks:
+        raise HTTPException(401, "Not signed in")
     try:
         key = _jwks.get_signing_key_from_jwt(token).key
         claims = jwt.decode(token, key, algorithms=["RS256"], leeway=5)
@@ -496,6 +504,76 @@ async def promote_idea(idea_id: str, me: Me, db: Db, background: BackgroundTasks
     await db.commit()
     background.add_task(_reframe_later, task.id)
     return task
+
+
+# ---------- focus rooms: body doubling, presence only (§7 Pillar 7) ----------
+
+ROOMS = {"deep_work": "Deep work", "admin": "Admin & chores", "study": "Study"}
+
+# ponytail: in-process presence, so one API instance. Move to Redis pub/sub (§10) before running two.
+_rooms: dict[str, list[tuple[str, str, WebSocket]]] = {room: [] for room in ROOMS}
+
+
+def _presence(room: str) -> dict:
+    seen: dict[str, str] = {}
+    for user_id, name, _ in _rooms[room]:
+        seen[user_id] = name
+    return {"room": room, "count": len(seen), "people": [{"id": i, "name": n} for i, n in seen.items()]}
+
+
+async def _broadcast(room: str) -> None:
+    message = _presence(room)
+    for _, _, socket in list(_rooms[room]):
+        try:
+            await socket.send_json(message)
+        except (WebSocketDisconnect, RuntimeError):
+            pass  # it will be cleaned up when its own handler unwinds
+
+
+@api.get("/focus-rooms")
+async def focus_rooms(me: Me):
+    return [{"id": room, "theme": title, **_presence(room)} for room, title in ROOMS.items()]
+
+
+@app.websocket("/ws/focus-room/{room}")
+async def focus_room(socket: WebSocket, room: str, token: str = ""):
+    """Silent co-working: who else is here, nothing more. No audio, no video, no chat."""
+    if room not in ROOMS:
+        await socket.close(code=4404)
+        return
+    try:
+        user_id = _user_id_from_token(token)
+    except HTTPException:
+        await socket.close(code=4401)
+        return
+
+    await socket.accept()
+    async with Session() as db:
+        user = await db.get(User, user_id)
+        if not user:  # first contact can be a socket, not an HTTP call
+            user = User(id=user_id)
+            db.add(user)
+            await db.flush()
+        name = user.display_name or "Someone"
+        session = FocusSession(user_id=user_id, type="focus_room")
+        db.add(session)
+        await db.commit()
+
+    _rooms[room].append((user_id, name, socket))
+    await _broadcast(room)
+    try:
+        while True:
+            await socket.receive_text()  # keepalives; nothing to act on
+    except WebSocketDisconnect:
+        pass
+    finally:
+        _rooms[room] = [entry for entry in _rooms[room] if entry[2] is not socket]
+        await _broadcast(room)
+        async with Session() as db:
+            ended = await db.get(FocusSession, session.id)
+            if ended:
+                ended.ended_at = now()
+                await db.commit()
 
 
 # ---------- energy ----------

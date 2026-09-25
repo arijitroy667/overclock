@@ -26,6 +26,7 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Overclock</h1>
         <div className="flex items-center gap-3">
           {offline && <p className="text-sm text-muted">Can’t reach the server. Captures still save.</p>}
+          <Link href="/rooms" className="text-sm text-muted underline">Rooms</Link>
           <Link href="/ideas" className="text-sm text-muted underline">Ideas</Link>
           <Link href="/settings" className="text-sm text-muted underline">Settings</Link>
           <UserButton />

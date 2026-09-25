@@ -13,6 +13,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.54",
     "tzdata>=2026.4",
     "uvicorn[standard]>=0.53.0",
+    "websockets>=16.1.1",
 ]
 
 [dependency-groups]

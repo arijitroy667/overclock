@@ -1,7 +1,8 @@
 import os
 
 os.environ["MIGRATE_ON_STARTUP"] = "0"
-os.environ["SCHEDULER"] = "0"  # tests drive the scheduler directly  # tests build the schema from the models directly
+os.environ["SCHEDULER"] = "0"
+os.environ["DB_POOL"] = "none"  # tests drive the scheduler directly  # tests build the schema from the models directly
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://overclock:overclock@localhost:5433/overclock_test")
 
 import pytest
@@ -25,6 +26,7 @@ def client(monkeypatch):
         return request.headers["x-test-user"]
 
     monkeypatch.setattr(main, "_user_id_from", fake_auth)
+    monkeypatch.setattr(main, "_user_id_from_token", lambda token: token)  # room sockets carry the user in ?token=
     monkeypatch.setattr(main, "rate_limit", lambda uid: _noop())
 
     async def fake_reframe(text, lever):
@@ -142,6 +144,11 @@ def test_clerk_token_verification(monkeypatch):
             check(**bad)
     with pytest.raises(HTTPException):
         main._user_id_from(SimpleNamespace(headers={}))
+
+    # DEV_AUTH_USER still bypasses auth for local development (and only then).
+    monkeypatch.setattr(main, "DEV_AUTH_USER", "local-dev")
+    assert main._user_id_from(SimpleNamespace(headers={})) == "local-dev"
+    assert main._user_id_from_token("") == "local-dev"
 
 
 def test_preferences(client):
@@ -295,3 +302,25 @@ def test_reminders_are_queued_sent_and_cancelled(client, monkeypatch):
     assert len(client.portal.call(pending)) == 4
     client.post(f"/api/v1/tasks/{task['id']}/complete", json={}, headers=h())
     assert client.portal.call(pending) == []
+
+
+def test_focus_room_presence(client):
+    rooms = client.get("/api/v1/focus-rooms", headers=h()).json()
+    assert [r["id"] for r in rooms] == ["deep_work", "admin", "study"]
+    assert all(r["count"] == 0 for r in rooms)  # honest empty state, no fake crowd
+
+    with client.websocket_connect("/ws/focus-room/deep_work?token=u1") as first:
+        assert first.receive_json()["count"] == 1
+        with client.websocket_connect("/ws/focus-room/deep_work?token=u1") as same_person:
+            assert same_person.receive_json()["count"] == 1  # two devices, still one person
+        with client.websocket_connect("/ws/focus-room/deep_work?token=u2") as other:
+            assert other.receive_json()["count"] == 2
+            assert client.get("/api/v1/focus-rooms", headers=h()).json()[0]["count"] == 2
+    assert client.get("/api/v1/focus-rooms", headers=h()).json()[0]["count"] == 0  # leaving clears presence
+
+    import pytest as _pytest
+    from starlette.websockets import WebSocketDisconnect as _Disconnect
+
+    with _pytest.raises(_Disconnect):  # unknown room
+        with client.websocket_connect("/ws/focus-room/nope?token=u1") as bad:
+            bad.receive_json()

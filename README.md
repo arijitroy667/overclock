@@ -16,7 +16,9 @@ Personal OS for the ADHD brain. Product spec: [prd.md](prd.md) (§15 is the curr
 - [ ] Phase 2 left: passive hyperfocus detection, Focus Rooms (body doubling)
 - [x] CI (GitHub Actions) and Docker images for the API and web
 - [x] Web push + server-side reminder scheduler (reminders arrive with the app closed)
-- [ ] Focus Rooms (body doubling), hosting, store release
+- [x] Focus Rooms (body doubling): presence-only, over a WebSocket. No video — LiveKit would mean a paid
+      or self-hosted server; the PRD's Phase 2 wants presence first anyway
+- [ ] Hosting and store release
 
 ## Run the API
 ```sh

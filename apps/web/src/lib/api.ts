@@ -4,6 +4,8 @@ import type { Idea, Insights, Me, Preferences, Task } from "../../../../packages
 
 export type { Idea, Insights, Me, Preferences, Task };
 
+export type Room = { id: string; theme: string; count: number; people: { id: string; name: string }[] };
+
 /** Reframing runs in the background right after capture; allow ~30s before treating it as "no reframe". */
 export const isReframing = (t: Task) => !t.reframed_title && Date.now() - new Date(t.captured_at).getTime() < 30_000;
 
@@ -77,6 +79,7 @@ export const api = {
   archiveIdea: (id: string) => req(`/ideas/${id}`, { method: "DELETE" }),
   promoteIdea: (id: string) => req<Task>(`/ideas/${id}/promote`, { method: "POST" }),
   reflection: () => req<{ week_start: string; text: string }>("/insights/reflection"),
+  focusRooms: () => req<Room[]>("/focus-rooms"),
   pushKey: () => req<{ vapid_public_key: string }>("/push/key"),
   addPush: (body: { platform: "web"; endpoint: string; keys: Record<string, string> }) =>
     req("/push/subscriptions", { method: "POST", body }),

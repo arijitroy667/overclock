@@ -68,6 +68,8 @@ export default function Now() {
         </Card>
       )}
 
+      <Button kind="quiet" label="Focus rooms — work alongside others" onPress={() => router.push('/rooms')} />
+
       {resurfaced.length > 0 && <T kind="h2">From a few days ago</T>}
       {resurfaced.map((task) => <TaskCard key={task.id} task={task} onChange={load} />)}
 

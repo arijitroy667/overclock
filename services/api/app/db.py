@@ -3,13 +3,15 @@ import os
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, NullPool, String, Text, UniqueConstraint
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://overclock:overclock@localhost:5433/overclock")
 
-engine = create_async_engine(DATABASE_URL)
+# DB_POOL=none: a connection per use. Only for tests, where the WebSocket test client runs handlers on
+# its own event loop and pooled asyncpg connections belong to the loop that opened them.
+engine = create_async_engine(DATABASE_URL, **({"poolclass": NullPool} if os.environ.get("DB_POOL") == "none" else {}))
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 

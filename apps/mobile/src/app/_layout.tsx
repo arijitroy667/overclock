@@ -65,6 +65,7 @@ function AppStack() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
         <Stack.Screen name="focus" options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="rooms" />
       </Stack.Protected>
       <Stack.Protected guard={!isSignedIn}>
         <Stack.Screen name="sign-in" />

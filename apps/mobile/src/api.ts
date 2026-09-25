@@ -5,6 +5,8 @@ import type { Idea, Insights, Me, Preferences, Task } from '../../../packages/ty
 
 export type { Idea, Insights, Me, Preferences, Task };
 
+export type Room = { id: string; theme: string; count: number; people: { id: string; name: string }[] };
+
 /** Reframing runs in the background right after capture; allow ~30s before treating it as "no reframe". */
 export const isReframing = (t: Task) => !t.reframed_title && Date.now() - new Date(t.captured_at).getTime() < 30_000;
 
@@ -16,6 +18,9 @@ const BASE = (process.env.EXPO_PUBLIC_API_URL || (devHost ? `http://${devHost}:8
 // Set from the root layout (Clerk's getToken lives in React context; this module doesn't).
 let getToken: () => Promise<string | null> = async () => null;
 export const setTokenGetter = (fn: typeof getToken) => { getToken = fn; };
+export const roomSocketUrl = (room: string, token: string) =>
+  `${BASE.replace(/^http/, 'ws').replace('/api/v1', '')}/ws/focus-room/${room}?token=${encodeURIComponent(token)}`;
+export const authToken = () => getToken();
 
 /** The server answered with an error. Anything else thrown by fetch means we never reached it. */
 export class HttpError extends Error {}
@@ -91,6 +96,7 @@ export const api = {
   archiveIdea: (id: string) => req(`/ideas/${id}`, { method: 'DELETE' }),
   promoteIdea: (id: string) => req<Task>(`/ideas/${id}/promote`, { method: 'POST' }),
   reflection: () => req<{ week_start: string; text: string }>('/insights/reflection'),
+  focusRooms: () => req<Room[]>('/focus-rooms'),
   addPush: (endpoint: string) =>
     req('/push/subscriptions', { method: 'POST', body: { platform: 'expo', endpoint, keys: {} } }),
   exportData: () => req<unknown>('/me/export'),
