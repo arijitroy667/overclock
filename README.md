@@ -12,7 +12,9 @@ Personal OS for the ADHD brain. Product spec: [prd.md](prd.md) (§15 is the curr
 - [x] Alembic migrations (applied automatically on API startup)
 - [x] Comfort preferences synced across devices: calm mode, easier-to-read font (Lexend), reminder timing
 - [x] Development-build config (`expo-dev-client`, `eas.json`) for system notifications on Android
-- [ ] Web push / server-side reminder scheduler, infra (Terraform, CI) — Phase 2+
+- [x] Phase 2: adaptive PINCH-lever choice, AI weekly reflection, Idea Vault, Crisis Sprint Mode
+- [ ] Phase 2 left: passive hyperfocus detection, Focus Rooms (body doubling)
+- [ ] Web push / server-side reminder scheduler, infra (Terraform, CI) — Phase 3
 
 ## Run the API
 ```sh

@@ -1,8 +1,8 @@
 import { getToken } from "@clerk/nextjs";
 
-import type { Insights, Me, Preferences, Task } from "../../../../packages/types";
+import type { Idea, Insights, Me, Preferences, Task } from "../../../../packages/types";
 
-export type { Insights, Me, Preferences, Task };
+export type { Idea, Insights, Me, Preferences, Task };
 
 /** Reframing runs in the background right after capture; allow ~30s before treating it as "no reframe". */
 export const isReframing = (t: Task) => !t.reframed_title && Date.now() - new Date(t.captured_at).getTime() < 30_000;
@@ -61,14 +61,18 @@ export const api = {
   patch: (id: string, body: { reframe_accepted?: boolean }) => req<Task>(`/tasks/${id}`, { method: "PATCH", body }),
   complete: (id: string, actual_duration?: number) =>
     req<Task>(`/tasks/${id}/complete`, { method: "POST", body: { actual_duration } }),
-  startSession: (task_id?: string) =>
-    req<{ id: string; guardrail_after_minutes: number }>("/focus-sessions/start", { method: "POST", body: { task_id } }),
+  startSession: (task_id?: string, type: "manual" | "crisis_sprint" = "manual") =>
+    req<{ id: string; guardrail_after_minutes: number }>("/focus-sessions/start", { method: "POST", body: { task_id, type } }),
   endSession: (id: string) => req(`/focus-sessions/${id}/end`, { method: "POST" }),
   guardrailAck: (id: string, kind: "hydration" | "movement" | "meal") =>
     req(`/focus-sessions/${id}/guardrail-ack`, { method: "POST", body: { kind } }),
   logEnergy: (energy_level: number) => req("/energy-logs", { method: "POST", body: { energy_level } }),
   insights: () => req<Insights>("/insights/weekly"),
   setPreferences: (body: Partial<Preferences>) => req<Preferences>("/me/preferences", { method: "PATCH", body }),
+  ideas: () => req<Idea[]>("/ideas"),
+  addIdea: (text: string) => req<Idea>("/ideas", { method: "POST", body: { text } }),
+  archiveIdea: (id: string) => req(`/ideas/${id}`, { method: "DELETE" }),
+  promoteIdea: (id: string) => req<Task>(`/ideas/${id}/promote`, { method: "POST" }),
   reflection: () => req<{ week_start: string; text: string }>("/insights/reflection"),
   exportData: () => req<unknown>("/me/export"),
   deleteAccount: () => req("/me", { method: "DELETE" }),

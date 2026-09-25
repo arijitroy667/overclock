@@ -189,3 +189,29 @@ def test_weekly_reflection_is_written_once(client):
     assert client.get("/api/v1/insights/reflection?regenerate=true", headers=h()).json()["text"] == "Nice week. 2"
     assert main.reflection_calls[-1]["levers"]  # the agent sees which levers got tasks started
     assert client.get("/api/v1/me/export", headers=h()).json()["reflections"][0]["generated_text"] == "Nice week. 2"
+
+
+def test_idea_vault_stays_out_of_the_task_list(client):
+    idea = client.post("/api/v1/ideas", json={"text": "app that names my houseplants"}, headers=h()).json()
+    assert client.get("/api/v1/tasks", headers=h()).json() == []  # ideas never clutter the task list
+
+    task = client.post(f"/api/v1/ideas/{idea['id']}/promote", headers=h()).json()
+    assert task["raw_input_text"] == "app that names my houseplants"
+    assert client.get("/api/v1/ideas", headers=h()).json() == []  # promoted ideas leave the vault
+    assert client.post(f"/api/v1/ideas/{idea['id']}/promote", headers=h()).status_code == 409
+
+    other = client.post("/api/v1/ideas", json={"text": "keep"}, headers=h()).json()
+    assert client.delete(f"/api/v1/ideas/{other['id']}", headers=h("u2")).status_code == 404  # not yours
+    client.delete(f"/api/v1/ideas/{other['id']}", headers=h())
+    assert client.get("/api/v1/ideas", headers=h()).json() == []
+    assert len(client.get("/api/v1/me/export", headers=h()).json()["ideas"]) == 2  # archived, not erased
+
+
+def test_crisis_sprints_are_counted_and_flagged(client):
+    for _ in range(main.CRISIS_OVERUSE_AFTER - 1):
+        client.post("/api/v1/focus-sessions/start", json={"type": "crisis_sprint"}, headers=h())
+    insights = client.get("/api/v1/insights/weekly", headers=h()).json()
+    assert insights["crisis_sprints_14d"] == main.CRISIS_OVERUSE_AFTER - 1 and insights["crisis_overuse"] is False
+
+    client.post("/api/v1/focus-sessions/start", json={"type": "crisis_sprint"}, headers=h())
+    assert client.get("/api/v1/insights/weekly", headers=h()).json()["crisis_overuse"] is True

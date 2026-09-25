@@ -39,6 +39,15 @@ export default function Insights() {
           {todayDone ? "Today's XP is full. That's a real finish line. Rest counts too." : `${data.xp_today} / ${data.xp_daily_cap} XP today`}
         </T>
       </Card>
+      {data.crisis_overuse && (
+        <Card>
+          <T kind="h2">Crunch mode has been on a lot</T>
+          <T kind="muted">
+            {data.crisis_sprints_14d} sprints in two weeks. It works, and living there is tiring. Worth asking what keeps
+            landing at the last minute.
+          </T>
+        </Card>
+      )}
       <Card>
         <T kind="h2">Finished this week</T>
         <T>{data.completion_rate === null ? 'Nothing captured yet' : `${Math.round(data.completion_rate * 100)}% of what you captured`}</T>

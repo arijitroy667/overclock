@@ -29,6 +29,7 @@ function Focus() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [guardrailAt, setGuardrailAt] = useState(120);
   const [inFlow, setInFlow] = useState(false);
+  const [crunch, setCrunch] = useState(false);
   const inFlowRef = useRef(false);
   const sessionStarted = useRef(false);
 
@@ -69,6 +70,14 @@ function Focus() {
     if (guardrailDue) notify("Quick body check", "Water, stretch, food? Your work will wait a minute.");
   }, [guardrailDue]);
 
+  /** §7 Pillar 8: opt-in, one task, no side doors — the current session is closed and reopened as a sprint. */
+  async function startCrunch() {
+    setCrunch(true);
+    if (sessionId) await api.endSession(sessionId).catch(() => {});
+    const sprint = await api.startSession(id, "crisis_sprint").catch(() => null);
+    if (sprint) setSessionId(sprint.id);
+  }
+
   async function ack(kind: "hydration" | "movement" | "meal") {
     if (sessionId) await api.guardrailAck(sessionId, kind).catch(() => {});
     setGuardrailAt(elapsedMin + GUARDRAIL_REPEAT_MIN);
@@ -84,13 +93,15 @@ function Focus() {
   const C = 2 * Math.PI * R;
   return (
     <main className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
-      <p className="text-sm text-muted">{inFlow ? "Protected: nudges paused, body checks still on" : "Focus"}</p>
+      <p className="text-sm text-muted">
+        {crunch ? "Crunch mode · this task only, until it’s done" : inFlow ? "Protected: nudges paused, body checks still on" : "Focus"}
+      </p>
       <h1 className="text-2xl font-bold">{title}</h1>
       <div className="relative my-4 grid place-items-center">
         <svg width={260} height={260} role="img" aria-label={`${mm} minutes ${remaining > 0 ? "left" : "over"}`}>
           <circle cx={130} cy={130} r={R} stroke="var(--soft)" strokeWidth={18} fill="none" />
           <circle
-            cx={130} cy={130} r={R} stroke={remaining > 0 ? "var(--accent)" : "var(--warm)"} strokeWidth={18} fill="none"
+            cx={130} cy={130} r={R} stroke={crunch || remaining <= 0 ? "var(--warm)" : "var(--accent)"} strokeWidth={18} fill="none"
             strokeDasharray={`${C * fraction} ${C}`} strokeLinecap="round" transform="rotate(-90 130 130)"
           />
         </svg>
@@ -99,13 +110,24 @@ function Focus() {
           <div className="text-sm text-muted">{remaining > 0 ? "left" : "over. No rush"}</div>
         </div>
       </div>
-      {!inFlow && (
+      {!inFlow && !crunch && (
         <button onClick={() => { inFlowRef.current = true; setInFlow(true); }} className="min-h-12 w-full rounded-xl bg-soft font-medium">
           I’m in flow
         </button>
       )}
       <button onClick={() => leave(true)} className="min-h-12 w-full rounded-xl bg-accent font-semibold text-accent-text">Done</button>
-      <button onClick={() => leave(false)} className="min-h-12 w-full rounded-xl bg-soft font-medium">Step away (it’ll be here)</button>
+      {crunch ? (
+        <button onClick={() => { setCrunch(false); leave(false); }} className="min-h-12 w-full rounded-xl px-4 text-sm text-muted underline">
+          Leave crunch mode
+        </button>
+      ) : (
+        <>
+          <button onClick={() => leave(false)} className="min-h-12 w-full rounded-xl bg-soft font-medium">Step away (it’ll be here)</button>
+          <button onClick={startCrunch} className="min-h-12 w-full rounded-xl px-4 text-sm text-muted underline">
+            Real deadline? Switch to crunch mode
+          </button>
+        </>
+      )}
 
       {guardrailDue && (
         <div role="dialog" aria-modal="true" aria-labelledby="bodycheck" className="fixed inset-0 grid place-items-center bg-bg p-6">

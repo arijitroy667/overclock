@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import motivator
 from . import reflection as reflection_agent
-from .db import EnergyLog, FocusSession, ReflectionSummary, Session, Subtask, Task, User, now
+from .db import EnergyLog, FocusSession, Idea, ReflectionSummary, Session, Subtask, Task, User, now
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +33,7 @@ GUARDRAIL_AFTER_MIN = 120  # §7 Pillar 4: gentle full-screen interrupt after 2h
 RESURFACE_AFTER = timedelta(days=1)  # §15: fixed interval, adaptive spacing is Phase 2
 DAILY_XP_CAP = 100  # §3.6: bounded progression, a reachable end state per day
 XP_PER_TASK = 10
+CRISIS_OVERUSE_AFTER = 5  # crisis sprints in 14 days before we mention the pattern
 
 _jwks = jwt.PyJWKClient(CLERK_JWKS_URL) if CLERK_JWKS_URL else None
 _redis = aioredis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
@@ -164,7 +165,7 @@ class CompleteIn(BaseModel):
 
 class SessionStartIn(BaseModel):
     task_id: str | None = None
-    type: Literal["manual", "hyperfocus_detected"] = "manual"
+    type: Literal["manual", "hyperfocus_detected", "crisis_sprint"] = "manual"
 
 
 class GuardrailAckIn(BaseModel):
@@ -375,6 +376,62 @@ async def guardrail_ack(session_id: str, body: GuardrailAckIn, me: Me, db: Db):
     return {"ok": True}
 
 
+# ---------- idea vault (§7 Pillar 9) ----------
+
+class IdeaIn(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class IdeaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    text: str
+    created_at: datetime
+    promoted_task_id: str | None
+
+
+@api.post("/ideas", response_model=IdeaOut)
+async def add_idea(body: IdeaIn, me: Me, db: Db):
+    idea = Idea(user_id=me.id, text=body.text)
+    db.add(idea)
+    await db.commit()
+    return idea
+
+
+@api.get("/ideas", response_model=list[IdeaOut])
+async def list_ideas(me: Me, db: Db):
+    return (await db.scalars(
+        select(Idea).where(Idea.user_id == me.id, Idea.archived_at.is_(None)).order_by(Idea.created_at.desc())
+    )).all()
+
+
+@api.delete("/ideas/{idea_id}")
+async def archive_idea(idea_id: str, me: Me, db: Db):
+    idea = await db.get(Idea, idea_id)
+    if not idea or idea.user_id != me.id:
+        raise HTTPException(404, "Idea not found")
+    idea.archived_at = now()
+    await db.commit()
+    return {"ok": True}
+
+
+@api.post("/ideas/{idea_id}/promote", response_model=TaskOut)
+async def promote_idea(idea_id: str, me: Me, db: Db, background: BackgroundTasks):
+    """Turn an idea into a real task — the only path from the vault into the task list."""
+    idea = await db.get(Idea, idea_id)
+    if not idea or idea.user_id != me.id:
+        raise HTTPException(404, "Idea not found")
+    if idea.promoted_task_id:
+        raise HTTPException(409, "That one is already on your task list")
+    task = Task(user_id=me.id, raw_input_text=idea.text, source="text", subtasks=[])
+    db.add(task)
+    await db.flush()
+    idea.promoted_task_id, idea.archived_at = task.id, now()
+    await db.commit()
+    background.add_task(_reframe_later, task.id)
+    return task
+
+
 # ---------- energy ----------
 
 @api.post("/energy-logs")
@@ -413,6 +470,13 @@ async def _weekly_metrics(me: User, db: AsyncSession) -> dict:
     for at, level in energy:
         by_day[at.astimezone(tz).date().isoformat()].append(level)
 
+    crisis_recently = await db.scalar(
+        select(func.count()).select_from(FocusSession).where(
+            FocusSession.user_id == me.id,
+            FocusSession.type == "crisis_sprint",
+            FocusSession.started_at >= now() - timedelta(days=14),
+        )
+    )
     return {
         "completion_rate": rate(captured),
         "completion_rate_reframed": rate([t for t in captured if t.reframed_title]),
@@ -425,6 +489,9 @@ async def _weekly_metrics(me: User, db: AsyncSession) -> dict:
         "xp_today": min(per_day[now().astimezone(tz).date()] * XP_PER_TASK, DAILY_XP_CAP),
         "xp_daily_cap": DAILY_XP_CAP,
         "energy_by_day": {d: round(sum(v) / len(v), 1) for d, v in sorted(by_day.items())},
+        # §7 Pillar 8: surface chronic crisis-mode use honestly; living in crunch is a burnout risk, not a strategy
+        "crisis_sprints_14d": crisis_recently,
+        "crisis_overuse": crisis_recently >= CRISIS_OVERUSE_AFTER,
     }
 
 
@@ -508,6 +575,7 @@ async def export(me: Me, db: Db):
         "focus_sessions": rows((await db.scalars(select(FocusSession).where(FocusSession.user_id == me.id))).all()),
         "energy_logs": rows((await db.scalars(select(EnergyLog).where(EnergyLog.user_id == me.id))).all()),
         "reflections": rows((await db.scalars(select(ReflectionSummary).where(ReflectionSummary.user_id == me.id))).all()),
+        "ideas": rows((await db.scalars(select(Idea).where(Idea.user_id == me.id))).all()),
     }
 
 
@@ -518,6 +586,7 @@ async def delete_me(me: Me, db: Db):
         delete(Subtask).where(Subtask.task_id.in_(task_ids)),
         delete(FocusSession).where(FocusSession.user_id == me.id),
         delete(ReflectionSummary).where(ReflectionSummary.user_id == me.id),
+        delete(Idea).where(Idea.user_id == me.id),
         delete(EnergyLog).where(EnergyLog.user_id == me.id),
         delete(Task).where(Task.user_id == me.id),
         delete(User).where(User.id == me.id),

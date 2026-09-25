@@ -22,7 +22,10 @@ export type Insights = {
   xp_today: number;
   xp_daily_cap: number;
   energy_by_day: Record<string, number>;
+  crisis_sprints_14d: number;
+  crisis_overuse: boolean;
 };
+export type Idea = { id: string; text: string; created_at: string; promoted_task_id: string | null };
 export type Preferences = { calm_mode: boolean; dyslexia_font: boolean; reminder_offsets: number[] };
 export type Me = { id: string; onboarded: boolean; disclaimer: string; preferences: Preferences };
 

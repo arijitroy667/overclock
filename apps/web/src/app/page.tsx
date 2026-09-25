@@ -26,6 +26,7 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Overclock</h1>
         <div className="flex items-center gap-3">
           {offline && <p className="text-sm text-muted">Can’t reach the server. Captures still save.</p>}
+          <Link href="/ideas" className="text-sm text-muted underline">Ideas</Link>
           <Link href="/settings" className="text-sm text-muted underline">Settings</Link>
           <UserButton />
         </div>
@@ -206,6 +207,15 @@ function InsightsPanel({ data }: { data: Insights }) {
         <h2 className="font-semibold">Finished this week</h2>
         <p>{data.completion_rate === null ? "Nothing captured yet" : `${Math.round(data.completion_rate * 100)}% of what you captured`}</p>
       </Card>
+      {data.crisis_overuse && (
+        <Card>
+          <h2 className="font-semibold">Crunch mode has been on a lot</h2>
+          <p className="text-sm text-muted">
+            {data.crisis_sprints_14d} sprints in two weeks. It works, and living there is tiring. Worth asking what keeps
+            landing at the last minute.
+          </p>
+        </Card>
+      )}
       {energy.length > 0 && (
         <Card>
           <h2 className="font-semibold">Energy</h2>

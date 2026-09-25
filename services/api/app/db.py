@@ -96,6 +96,17 @@ class ReflectionSummary(Base):
     __table_args__ = (UniqueConstraint("user_id", "week_start"),)
 
 
+class Idea(Base):
+    """Idea Vault (§7 Pillar 9): capture-and-return, deliberately apart from the task list."""
+    __tablename__ = "ideas"
+    id: Mapped[str] = mapped_column(primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(default=now)
+    archived_at: Mapped[datetime | None]
+    promoted_task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"))
+
+
 class EnergyLog(Base):
     __tablename__ = "energy_logs"
     id: Mapped[str] = mapped_column(primary_key=True, default=new_id)

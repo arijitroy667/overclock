@@ -20,6 +20,7 @@ export default function Focus() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [guardrailAt, setGuardrailAt] = useState(120);
   const [inFlow, setInFlow] = useState(false);
+  const [crunch, setCrunch] = useState(false);
   const transitionIds = useRef<string[]>([]);
   const { prefs } = usePrefs();
   const offsets = prefs.reminder_offsets;
@@ -61,6 +62,14 @@ export default function Focus() {
     await Promise.all(transitionIds.current.map((n) => Notifications?.cancelScheduledNotificationAsync(n)));
   }
 
+  /** §7 Pillar 8: opt-in, one task, no side doors — the current session is closed and reopened as a sprint. */
+  async function startCrunch() {
+    setCrunch(true);
+    if (sessionId) await api.endSession(sessionId).catch(() => {});
+    const sprint = await api.startSession(id, 'crisis_sprint').catch(() => null);
+    if (sprint) setSessionId(sprint.id);
+  }
+
   async function ack(kind: 'hydration' | 'movement' | 'meal') {
     if (sessionId) await api.guardrailAck(sessionId, kind).catch(() => {});
     setGuardrailAt(elapsedMin + GUARDRAIL_REPEAT_MIN);
@@ -76,13 +85,15 @@ export default function Focus() {
   const C = 2 * Math.PI * R;
   return (
     <Screen>
-      <T kind="muted">{inFlow ? 'Protected: nudges paused, body checks still on' : 'Focus'}</T>
+      <T kind="muted">
+        {crunch ? 'Crunch mode · this task only, until it’s done' : inFlow ? 'Protected: nudges paused, body checks still on' : 'Focus'}
+      </T>
       <T kind="title">{title}</T>
       <View style={{ alignItems: 'center', justifyContent: 'center', marginVertical: space.lg }}>
         <Svg width={260} height={260}>
           <Circle cx={130} cy={130} r={R} stroke={t.soft} strokeWidth={18} fill="none" />
           <Circle
-            cx={130} cy={130} r={R} stroke={remaining > 0 ? t.accent : t.warm} strokeWidth={18} fill="none"
+            cx={130} cy={130} r={R} stroke={crunch || remaining <= 0 ? t.warm : t.accent} strokeWidth={18} fill="none"
             strokeDasharray={`${C * fraction} ${C}`} strokeLinecap="round" transform="rotate(-90 130 130)"
           />
         </Svg>
@@ -91,9 +102,16 @@ export default function Focus() {
           <T kind="muted">{remaining > 0 ? 'left' : 'over. No rush'}</T>
         </View>
       </View>
-      {!inFlow && <Button kind="quiet" label="I'm in flow" onPress={enterFlow} />}
+      {!inFlow && !crunch && <Button kind="quiet" label="I'm in flow" onPress={enterFlow} />}
       <Button label="Done" onPress={() => leave(true)} />
-      <Button kind="quiet" label="Step away (it'll be here)" onPress={() => leave(false)} />
+      {crunch ? (
+        <Button kind="quiet" label="Leave crunch mode" onPress={() => { setCrunch(false); leave(false); }} />
+      ) : (
+        <>
+          <Button kind="quiet" label="Step away (it'll be here)" onPress={() => leave(false)} />
+          <Button kind="quiet" label="Real deadline? Switch to crunch mode" onPress={startCrunch} />
+        </>
+      )}
 
       <Modal visible={elapsedMin >= guardrailAt} animationType={t.calm ? 'none' : 'fade'} onRequestClose={() => {}}>
         <Screen>
