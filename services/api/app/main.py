@@ -33,6 +33,7 @@ GUARDRAIL_AFTER_MIN = 120  # §7 Pillar 4: gentle full-screen interrupt after 2h
 RESURFACE_AFTER = timedelta(days=1)  # §15: fixed interval, adaptive spacing is Phase 2
 DAILY_XP_CAP = 100  # §3.6: bounded progression, a reachable end state per day
 XP_PER_TASK = 10
+HYPERFOCUS_AFTER_MIN = 45  # §7 Pillar 4: sustained single-task engagement before we call it flow
 CRISIS_OVERUSE_AFTER = 5  # crisis sprints in 14 days before we mention the pattern
 
 _jwks = jwt.PyJWKClient(CLERK_JWKS_URL) if CLERK_JWKS_URL else None
@@ -357,7 +358,11 @@ async def start_session(body: SessionStartIn, me: Me, db: Db):
     fs = FocusSession(user_id=me.id, task_id=body.task_id, type=body.type)
     db.add(fs)
     await db.commit()
-    return {"id": fs.id, "started_at": fs.started_at, "guardrail_after_minutes": GUARDRAIL_AFTER_MIN}
+    return {
+        "id": fs.id, "started_at": fs.started_at,
+        "guardrail_after_minutes": GUARDRAIL_AFTER_MIN,
+        "hyperfocus_after_minutes": HYPERFOCUS_AFTER_MIN,
+    }
 
 
 @api.post("/focus-sessions/{session_id}/end")
@@ -366,6 +371,26 @@ async def end_session(session_id: str, me: Me, db: Db, interruption_count: int =
     fs.ended_at, fs.interruption_count = now(), interruption_count
     await db.commit()
     return {"id": fs.id, "minutes": round((fs.ended_at - fs.started_at).total_seconds() / 60)}
+
+
+class HyperfocusIn(BaseModel):
+    detected: bool = True
+
+
+@api.post("/focus-sessions/{session_id}/hyperfocus")
+async def mark_hyperfocus(session_id: str, body: HyperfocusIn, me: Me, db: Db):
+    """Passive detection (§7 Pillar 4). The client notices the pattern; the server checks it really held,
+    so a false positive can't relabel a two-minute session — and the user can always undo it (§19)."""
+    fs = await _own_session(db, me, session_id)
+    if not body.detected:
+        fs.type = "manual"
+    else:
+        elapsed_min = (now() - fs.started_at).total_seconds() / 60
+        if elapsed_min < HYPERFOCUS_AFTER_MIN or fs.interruption_count or fs.task_id is None:
+            raise HTTPException(409, "Not a flow session (yet)")
+        fs.type = "hyperfocus_detected"
+    await db.commit()
+    return {"type": fs.type, "hyperfocus_after_minutes": HYPERFOCUS_AFTER_MIN}
 
 
 @api.post("/focus-sessions/{session_id}/guardrail-ack")
@@ -470,6 +495,18 @@ async def _weekly_metrics(me: User, db: AsyncSession) -> dict:
     for at, level in energy:
         by_day[at.astimezone(tz).date().isoformat()].append(level)
 
+    flow = (await db.execute(
+        select(FocusSession.started_at, FocusSession.ended_at, Task.category)
+        .join(Task, Task.id == FocusSession.task_id, isouter=True)
+        .where(
+            FocusSession.user_id == me.id,
+            FocusSession.type == "hyperfocus_detected",
+            FocusSession.started_at >= now() - timedelta(days=14),
+        )
+    )).all()
+    flow_hours = Counter(start.astimezone(tz).hour for start, _, _ in flow)
+    flow_categories = Counter(category for _, _, category in flow if category)
+
     crisis_recently = await db.scalar(
         select(func.count()).select_from(FocusSession).where(
             FocusSession.user_id == me.id,
@@ -490,6 +527,10 @@ async def _weekly_metrics(me: User, db: AsyncSession) -> dict:
         "xp_daily_cap": DAILY_XP_CAP,
         "energy_by_day": {d: round(sum(v) / len(v), 1) for d, v in sorted(by_day.items())},
         # §7 Pillar 8: surface chronic crisis-mode use honestly; living in crunch is a burnout risk, not a strategy
+        # §7 Pillar 4: learn to engineer the on-ramp instead of waiting for flow to happen
+        "hyperfocus_sessions_14d": len(flow),
+        "hyperfocus_peak_hour": flow_hours.most_common(1)[0][0] if flow_hours else None,
+        "hyperfocus_top_category": flow_categories.most_common(1)[0][0] if flow_categories else None,
         "crisis_sprints_14d": crisis_recently,
         "crisis_overuse": crisis_recently >= CRISIS_OVERUSE_AFTER,
     }

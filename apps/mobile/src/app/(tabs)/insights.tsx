@@ -39,6 +39,16 @@ export default function Insights() {
           {todayDone ? "Today's XP is full. That's a real finish line. Rest counts too." : `${data.xp_today} / ${data.xp_daily_cap} XP today`}
         </T>
       </Card>
+      {data.hyperfocus_sessions_14d > 0 && (
+        <Card>
+          <T kind="h2">Flow shows up</T>
+          <T kind="muted">
+            {data.hyperfocus_sessions_14d} deep sessions in two weeks
+            {data.hyperfocus_peak_hour !== null && `, most often around ${data.hyperfocus_peak_hour}:00`}
+            {data.hyperfocus_top_category && `, usually on ${data.hyperfocus_top_category.replace('_', ' ')} work`}.
+          </T>
+        </Card>
+      )}
       {data.crisis_overuse && (
         <Card>
           <T kind="h2">Crunch mode has been on a lot</T>

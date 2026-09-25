@@ -207,6 +207,16 @@ function InsightsPanel({ data }: { data: Insights }) {
         <h2 className="font-semibold">Finished this week</h2>
         <p>{data.completion_rate === null ? "Nothing captured yet" : `${Math.round(data.completion_rate * 100)}% of what you captured`}</p>
       </Card>
+      {data.hyperfocus_sessions_14d > 0 && (
+        <Card>
+          <h2 className="font-semibold">Flow shows up</h2>
+          <p className="text-sm text-muted">
+            {data.hyperfocus_sessions_14d} deep sessions in two weeks
+            {data.hyperfocus_peak_hour !== null && `, most often around ${data.hyperfocus_peak_hour}:00`}
+            {data.hyperfocus_top_category && `, usually on ${data.hyperfocus_top_category.replace("_", " ")} work`}.
+          </p>
+        </Card>
+      )}
       {data.crisis_overuse && (
         <Card>
           <h2 className="font-semibold">Crunch mode has been on a lot</h2>

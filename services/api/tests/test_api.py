@@ -215,3 +215,32 @@ def test_crisis_sprints_are_counted_and_flagged(client):
 
     client.post("/api/v1/focus-sessions/start", json={"type": "crisis_sprint"}, headers=h())
     assert client.get("/api/v1/insights/weekly", headers=h()).json()["crisis_overuse"] is True
+
+
+def test_hyperfocus_needs_a_session_that_actually_held(client):
+    from datetime import timedelta
+
+    from app.db import FocusSession, Session as DbSession, now
+
+    task = client.post("/api/v1/tasks/capture", json={"text": "write the chapter"}, headers=h()).json()
+    started = client.post("/api/v1/focus-sessions/start", json={"task_id": task["id"]}, headers=h()).json()
+    assert started["hyperfocus_after_minutes"] == main.HYPERFOCUS_AFTER_MIN
+
+    # A fresh session is never flow, however loudly the client claims it.
+    assert client.post(f"/api/v1/focus-sessions/{started['id']}/hyperfocus", json={}, headers=h()).status_code == 409
+
+    async def age_session():
+        async with DbSession() as db:
+            fs = await db.get(FocusSession, started["id"])
+            fs.started_at = now() - timedelta(minutes=main.HYPERFOCUS_AFTER_MIN + 1)
+            await db.commit()
+
+    client.portal.call(age_session)
+    assert client.post(f"/api/v1/focus-sessions/{started['id']}/hyperfocus", json={}, headers=h()).json()["type"] == "hyperfocus_detected"
+    insights = client.get("/api/v1/insights/weekly", headers=h()).json()
+    assert insights["hyperfocus_sessions_14d"] == 1 and insights["hyperfocus_top_category"] == "admin"
+
+    # "Actually, no" puts it back — false positives must be undoable (§19).
+    undo = client.post(f"/api/v1/focus-sessions/{started['id']}/hyperfocus", json={"detected": False}, headers=h()).json()
+    assert undo["type"] == "manual"
+    assert client.get("/api/v1/insights/weekly", headers=h()).json()["hyperfocus_sessions_14d"] == 0

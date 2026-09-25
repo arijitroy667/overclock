@@ -22,6 +22,9 @@ export type Insights = {
   xp_today: number;
   xp_daily_cap: number;
   energy_by_day: Record<string, number>;
+  hyperfocus_sessions_14d: number;
+  hyperfocus_peak_hour: number | null;
+  hyperfocus_top_category: string | null;
   crisis_sprints_14d: number;
   crisis_overuse: boolean;
 };

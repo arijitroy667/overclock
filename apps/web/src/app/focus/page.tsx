@@ -30,6 +30,8 @@ function Focus() {
   const [guardrailAt, setGuardrailAt] = useState(120);
   const [inFlow, setInFlow] = useState(false);
   const [crunch, setCrunch] = useState(false);
+  const [autoFlow, setAutoFlow] = useState(false);
+  const [flowAfter, setFlowAfter] = useState<number | null>(null);
   const inFlowRef = useRef(false);
   const sessionStarted = useRef(false);
 
@@ -39,6 +41,7 @@ function Focus() {
     api.startSession(id).then((s) => {
       setSessionId(s.id);
       setGuardrailAt(s.guardrail_after_minutes);
+      setFlowAfter(s.hyperfocus_after_minutes);
     }).catch(() => {});
   }, [id]);
 
@@ -78,6 +81,21 @@ function Focus() {
     if (sprint) setSessionId(sprint.id);
   }
 
+  // §7 Pillar 4: notice flow instead of waiting to be told, and protect it quietly.
+  useEffect(() => {
+    if (!sessionId || !flowAfter || inFlow || crunch || elapsedMin < flowAfter) return;
+    api.markHyperfocus(sessionId, true)
+      .then(() => { inFlowRef.current = true; setInFlow(true); setAutoFlow(true); })
+      .catch(() => {});
+  }, [sessionId, flowAfter, inFlow, crunch, elapsedMin]);
+
+  async function notFlow() {
+    setInFlow(false);
+    setAutoFlow(false);
+    inFlowRef.current = false;
+    if (sessionId) await api.markHyperfocus(sessionId, false).catch(() => {});
+  }
+
   async function ack(kind: "hydration" | "movement" | "meal") {
     if (sessionId) await api.guardrailAck(sessionId, kind).catch(() => {});
     setGuardrailAt(elapsedMin + GUARDRAIL_REPEAT_MIN);
@@ -94,8 +112,15 @@ function Focus() {
   return (
     <main className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
       <p className="text-sm text-muted">
-        {crunch ? "Crunch mode · this task only, until it’s done" : inFlow ? "Protected: nudges paused, body checks still on" : "Focus"}
+        {crunch
+          ? "Crunch mode · this task only, until it’s done"
+          : inFlow
+            ? `${autoFlow ? "Looks like flow. " : ""}Protected: nudges paused, body checks still on`
+            : "Focus"}
       </p>
+      {autoFlow && (
+        <button onClick={notFlow} className="text-sm text-muted underline">Not flow — keep nudging me</button>
+      )}
       <h1 className="text-2xl font-bold">{title}</h1>
       <div className="relative my-4 grid place-items-center">
         <svg width={260} height={260} role="img" aria-label={`${mm} minutes ${remaining > 0 ? "left" : "over"}`}>

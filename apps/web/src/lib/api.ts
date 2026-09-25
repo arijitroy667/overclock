@@ -62,7 +62,9 @@ export const api = {
   complete: (id: string, actual_duration?: number) =>
     req<Task>(`/tasks/${id}/complete`, { method: "POST", body: { actual_duration } }),
   startSession: (task_id?: string, type: "manual" | "crisis_sprint" = "manual") =>
-    req<{ id: string; guardrail_after_minutes: number }>("/focus-sessions/start", { method: "POST", body: { task_id, type } }),
+    req<{ id: string; guardrail_after_minutes: number; hyperfocus_after_minutes: number }>("/focus-sessions/start", { method: "POST", body: { task_id, type } }),
+  markHyperfocus: (id: string, detected: boolean) =>
+    req<{ type: string }>(`/focus-sessions/${id}/hyperfocus`, { method: "POST", body: { detected } }),
   endSession: (id: string) => req(`/focus-sessions/${id}/end`, { method: "POST" }),
   guardrailAck: (id: string, kind: "hydration" | "movement" | "meal") =>
     req(`/focus-sessions/${id}/guardrail-ack`, { method: "POST", body: { kind } }),
