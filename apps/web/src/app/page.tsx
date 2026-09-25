@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 
-import { api, capture, flushQueue, isReframing, type Insights, type Me, type Task } from "@/lib/api";
+import { api, capture, flushQueue, isReframing, reminderPresets, type Insights, type Me, type Task } from "@/lib/api";
 
 const ENERGY = ["Running on fumes", "Low", "Okay", "Good", "Charged up"];
 
@@ -137,6 +137,7 @@ function TaskCard({ task, onChange }: { task: Task; onChange: () => void }) {
   const router = useRouter();
   const [showOriginal, setShowOriginal] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
   const reframed = !!task.reframed_title;
 
   async function start() {
@@ -166,12 +167,27 @@ function TaskCard({ task, onChange }: { task: Task; onChange: () => void }) {
         <button onClick={start} className="min-h-11 rounded-xl bg-accent px-5 font-semibold text-accent-text">Start</button>
         <button disabled={busy} onClick={() => run(() => api.reframe(task.id))} className="min-h-11 rounded-xl bg-soft px-4 disabled:opacity-50">Another angle</button>
         <button disabled={busy} onClick={() => run(() => api.complete(task.id))} className="min-h-11 rounded-xl bg-soft px-4 disabled:opacity-50">Done</button>
+        <button onClick={() => setPicking(!picking)} className="min-h-11 rounded-xl bg-soft px-4">Remind me</button>
         {reframed && (
           <button onClick={() => setShowOriginal(!showOriginal)} className="px-2 text-sm text-muted underline">
             {showOriginal ? "Show reframed" : "Show what I wrote"}
           </button>
         )}
       </div>
+      {picking && (
+        <div className="flex flex-wrap gap-2">
+          {reminderPresets().map(({ label, at }) => (
+            <button
+              key={label}
+              disabled={busy}
+              onClick={() => { setPicking(false); run(() => api.patch(task.id, { scheduled_start: at.toISOString(), status: "scheduled" })); }}
+              className="min-h-11 rounded-xl bg-soft px-4 text-sm"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }

@@ -96,6 +96,31 @@ class ReflectionSummary(Base):
     __table_args__ = (UniqueConstraint("user_id", "week_start"),)
 
 
+class PushSubscription(Base):
+    """Where to reach a user when the app is closed: a browser push endpoint or an Expo push token."""
+    __tablename__ = "push_subscriptions"
+    id: Mapped[str] = mapped_column(primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    platform: Mapped[str]  # web | expo
+    endpoint: Mapped[str] = mapped_column(Text)  # push URL (web) or ExponentPushToken (expo)
+    keys: Mapped[dict] = mapped_column(JSON, default=dict)  # web push p256dh/auth
+    created_at: Mapped[datetime] = mapped_column(default=now)
+    failed_at: Mapped[datetime | None]
+    __table_args__ = (UniqueConstraint("user_id", "endpoint"),)
+
+
+class Reminder(Base):
+    """A queued nudge (§7 Pillar 2). The scheduler sends these whether or not the app is open."""
+    __tablename__ = "reminders"
+    id: Mapped[str] = mapped_column(primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    send_at: Mapped[datetime] = mapped_column(index=True)
+    title: Mapped[str]
+    body: Mapped[str]
+    sent_at: Mapped[datetime | None]
+
+
 class Idea(Base):
     """Idea Vault (§7 Pillar 9): capture-and-return, deliberately apart from the task list."""
     __tablename__ = "ideas"

@@ -18,9 +18,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from . import motivator
+from . import motivator, push, scheduler
 from . import reflection as reflection_agent
-from .db import EnergyLog, FocusSession, Idea, ReflectionSummary, Session, Subtask, Task, User, now
+from .db import EnergyLog, FocusSession, Idea, PushSubscription, Reminder, ReflectionSummary, Session, Subtask, Task, User, now
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +47,10 @@ async def lifespan(_: FastAPI):
     if os.environ.get("MIGRATE_ON_STARTUP", "1") == "1":
         # ponytail: fine for one instance; with several replicas run `alembic upgrade head` as a deploy step instead.
         await asyncio.to_thread(_migrate)
+    ticker = asyncio.create_task(scheduler.run()) if os.environ.get("SCHEDULER", "1") == "1" else None
     yield
+    if ticker:
+        ticker.cancel()
 
 
 def _migrate() -> None:
@@ -317,8 +320,11 @@ async def resurface(me: Me, db: Db):
 @api.patch("/tasks/{task_id}", response_model=TaskOut)
 async def patch_task(task_id: str, body: TaskPatch, me: Me, db: Db):
     task = await _own_task(db, me, task_id)
-    for k, v in body.model_dump(exclude_unset=True).items():
+    fields = body.model_dump(exclude_unset=True)
+    for k, v in fields.items():
         setattr(task, k, v)
+    if {"scheduled_start", "status"} & fields.keys():
+        await scheduler.schedule_task_reminders(db, me, task)
     await db.commit()
     return task
 
@@ -337,6 +343,7 @@ async def complete(task_id: str, body: CompleteIn, me: Me, db: Db):
     task.status, task.completed_at = "done", now()
     if body.actual_duration:
         task.actual_duration = body.actual_duration
+    await scheduler.schedule_task_reminders(db, me, task)  # nothing pending for a finished task
     await db.commit()
     return task
 
@@ -397,6 +404,40 @@ async def mark_hyperfocus(session_id: str, body: HyperfocusIn, me: Me, db: Db):
 async def guardrail_ack(session_id: str, body: GuardrailAckIn, me: Me, db: Db):
     fs = await _own_session(db, me, session_id)
     fs.guardrail_prompts_triggered = [*fs.guardrail_prompts_triggered, {"kind": body.kind, "at": now().isoformat()}]
+    await db.commit()
+    return {"ok": True}
+
+
+# ---------- push subscriptions (§7 Pillar 2) ----------
+
+class PushIn(BaseModel):
+    platform: Literal["web", "expo"]
+    endpoint: str = Field(min_length=1, max_length=2000)
+    keys: dict = {}
+
+
+@api.get("/push/key")
+async def push_key():
+    """The browser needs this public key to subscribe. Public by design."""
+    return {"vapid_public_key": push.VAPID_PUBLIC_KEY}
+
+
+@api.post("/push/subscriptions")
+async def add_push_subscription(body: PushIn, me: Me, db: Db):
+    existing = await db.scalar(
+        select(PushSubscription).where(PushSubscription.user_id == me.id, PushSubscription.endpoint == body.endpoint)
+    )
+    if not existing:
+        db.add(PushSubscription(user_id=me.id, platform=body.platform, endpoint=body.endpoint, keys=body.keys))
+        await db.commit()
+    return {"ok": True}
+
+
+@api.delete("/push/subscriptions")
+async def remove_push_subscription(body: PushIn, me: Me, db: Db):
+    await db.execute(
+        delete(PushSubscription).where(PushSubscription.user_id == me.id, PushSubscription.endpoint == body.endpoint)
+    )
     await db.commit()
     return {"ok": True}
 
@@ -628,6 +669,8 @@ async def delete_me(me: Me, db: Db):
         delete(FocusSession).where(FocusSession.user_id == me.id),
         delete(ReflectionSummary).where(ReflectionSummary.user_id == me.id),
         delete(Idea).where(Idea.user_id == me.id),
+        delete(Reminder).where(Reminder.user_id == me.id),
+        delete(PushSubscription).where(PushSubscription.user_id == me.id),
         delete(EnergyLog).where(EnergyLog.user_id == me.id),
         delete(Task).where(Task.user_id == me.id),
         delete(User).where(User.id == me.id),

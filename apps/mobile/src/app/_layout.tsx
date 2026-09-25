@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
 import { api, flushQueue, setTokenGetter } from '@/api';
-import { Notifications } from '@/notifications';
+import { Notifications, registerPushToken } from '@/notifications';
 import { PrefsProvider } from '@/prefs';
 import { useTheme } from '@/theme';
 
@@ -53,6 +53,7 @@ function AppStack() {
       .then((me) => !me.onboarded && router.replace('/onboarding'))
       .catch(() => {}); // offline: let them capture anyway
     flushQueue().catch(() => {});
+    registerPushToken().then((token) => token && api.addPush(token)).catch(() => {});
     const sub = AppState.addEventListener('change', (s) => s === 'active' && flushQueue().catch(() => {}));
     return () => sub.remove();
   }, [isSignedIn]);

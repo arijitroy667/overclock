@@ -15,7 +15,8 @@ Personal OS for the ADHD brain. Product spec: [prd.md](prd.md) (§15 is the curr
 - [x] Phase 2: adaptive PINCH-lever choice, AI weekly reflection, Idea Vault, Crisis Sprint Mode
 - [ ] Phase 2 left: passive hyperfocus detection, Focus Rooms (body doubling)
 - [x] CI (GitHub Actions) and Docker images for the API and web
-- [ ] Web push / server-side reminder scheduler, hosting, store release — Phase 3
+- [x] Web push + server-side reminder scheduler (reminders arrive with the app closed)
+- [ ] Focus Rooms (body doubling), hosting, store release
 
 ## Run the API
 ```sh
@@ -68,6 +69,18 @@ uv run pytest             # DATABASE_URL overrides the test DB
 | `mobile` | typecheck, lint, Android bundle |
 
 Builds use placeholder Clerk keys, so CI needs no secrets.
+
+## Reminders
+
+"Remind me" on a task queues nudges (its `reminder_offsets`, then the start time); a loop inside the API
+sends them whether or not the app is open. Web push needs a VAPID key pair — free, no account:
+
+```sh
+cd services/api && uv run python scripts/gen_vapid.py   # paste both lines into .env
+```
+
+Phone push needs a development build and an EAS project id (Expo's push service is free); in Expo Go the
+app falls back to local notifications.
 
 ## Deploying
 

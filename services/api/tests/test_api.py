@@ -1,6 +1,7 @@
 import os
 
-os.environ["MIGRATE_ON_STARTUP"] = "0"  # tests build the schema from the models directly
+os.environ["MIGRATE_ON_STARTUP"] = "0"
+os.environ["SCHEDULER"] = "0"  # tests drive the scheduler directly  # tests build the schema from the models directly
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://overclock:overclock@localhost:5433/overclock_test")
 
 import pytest
@@ -244,3 +245,53 @@ def test_hyperfocus_needs_a_session_that_actually_held(client):
     undo = client.post(f"/api/v1/focus-sessions/{started['id']}/hyperfocus", json={"detected": False}, headers=h()).json()
     assert undo["type"] == "manual"
     assert client.get("/api/v1/insights/weekly", headers=h()).json()["hyperfocus_sessions_14d"] == 0
+
+
+def test_reminders_are_queued_sent_and_cancelled(client, monkeypatch):
+    from datetime import timedelta
+
+    from app import push as push_module
+    from app import scheduler
+    from app.db import Reminder, Session as DbSession, now
+
+    sent = []
+
+    async def fake_send(subscription, title, body):
+        sent.append((subscription.platform, title))
+        return True
+
+    monkeypatch.setattr(push_module, "send", fake_send)
+    client.post("/api/v1/push/subscriptions", json={"platform": "web", "endpoint": "https://push.example/abc", "keys": {"p256dh": "k", "auth": "a"}}, headers=h())
+    client.post("/api/v1/push/subscriptions", json={"platform": "web", "endpoint": "https://push.example/abc", "keys": {}}, headers=h())  # idempotent
+
+    task = client.post("/api/v1/tasks/capture", json={"text": "call the bank"}, headers=h()).json()
+    start = (now() + timedelta(minutes=20)).isoformat()
+    client.patch(f"/api/v1/tasks/{task['id']}", json={"scheduled_start": start, "status": "scheduled"}, headers=h())
+
+    async def pending():
+        async with DbSession() as db:
+            return list(await db.scalars(select_reminders()))
+
+    def select_reminders():
+        from sqlalchemy import select
+        return select(Reminder).where(Reminder.sent_at.is_(None)).order_by(Reminder.send_at)
+
+    queued = client.portal.call(pending)
+    assert [r.title.split()[0] for r in queued] == ["15", "10", "5", "Now:"]  # defaults, minus the ones already past
+
+    async def make_all_due():
+        async with DbSession() as db:
+            for reminder in await db.scalars(select_reminders()):
+                reminder.send_at = now() - timedelta(seconds=1)
+            await db.commit()
+
+    client.portal.call(make_all_due)
+    assert client.portal.call(scheduler.deliver_due) == 4
+    assert len(sent) == 4 and sent[0][0] == "web"
+    assert client.portal.call(scheduler.deliver_due) == 0  # never sent twice
+
+    # Finishing the task clears anything still queued for it.
+    client.patch(f"/api/v1/tasks/{task['id']}", json={"scheduled_start": (now() + timedelta(hours=2)).isoformat()}, headers=h())
+    assert len(client.portal.call(pending)) == 4
+    client.post(f"/api/v1/tasks/{task['id']}/complete", json={}, headers=h())
+    assert client.portal.call(pending) == []

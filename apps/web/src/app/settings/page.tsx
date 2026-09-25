@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { api, type Preferences } from "@/lib/api";
 import { applyPrefs, cachedPrefs, DEFAULT_PREFS } from "@/lib/prefs";
+import { currentSubscription, pushSupported, subscribe, unsubscribe } from "@/lib/push";
 
 const REMINDER_PRESETS = [[15, 10, 5], [30, 15, 5], [10, 5], [5]];
 
@@ -17,6 +18,24 @@ export default function Settings() {
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFS);
+
+  const [pushOn, setPushOn] = useState(false);
+  const [canPush, setCanPush] = useState(false);
+
+  useEffect(() => {
+    setCanPush(pushSupported());
+    currentSubscription().then((s) => setPushOn(!!s)).catch(() => {});
+  }, []);
+
+  async function togglePush(on: boolean) {
+    setPushOn(on);
+    try {
+      await (on ? subscribe() : unsubscribe());
+    } catch (e) {
+      setPushOn(!on);
+      setNote((e as Error).message);
+    }
+  }
 
   useEffect(() => {
     setPrefs(cachedPrefs()); // browser-only; server render uses defaults
@@ -71,6 +90,19 @@ export default function Settings() {
       <Card title="Comfort">
         <Toggle label="Calm mode" hint="Quieter colors, no motion. Handy when everything feels like a lot." checked={prefs.calm_mode} onChange={(v) => update({ calm_mode: v })} />
         <Toggle label="Easier-to-read font" hint="Lexend, with a little more spacing." checked={prefs.dyslexia_font} onChange={(v) => update({ dyslexia_font: v })} />
+      </Card>
+
+      <Card title="Reminders on this device">
+        {canPush ? (
+          <Toggle
+            label="Send reminders even when Overclock is closed"
+            hint="Uses your browser's notifications. On iPhone, add Overclock to your Home Screen first."
+            checked={pushOn}
+            onChange={togglePush}
+          />
+        ) : (
+          <p className="text-sm text-muted">This browser can’t receive notifications. Timers still work while the tab is open.</p>
+        )}
       </Card>
 
       <Card title="Heads-up before time runs out">

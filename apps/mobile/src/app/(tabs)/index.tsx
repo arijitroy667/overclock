@@ -2,7 +2,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { TextInput, View } from 'react-native';
 
-import { api, capture, isReframing, Task } from '@/api';
+import { api, capture, isReframing, reminderPresets, Task } from '@/api';
 import { radius, space, touch, useTheme } from '@/theme';
 import { Button, Card, Screen, T } from '@/ui';
 
@@ -80,6 +80,7 @@ export default function Now() {
 function TaskCard({ task, onChange }: { task: Task; onChange: () => void }) {
   const [showOriginal, setShowOriginal] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
   const reframed = !!task.reframed_title;
 
   async function start() {
@@ -113,6 +114,16 @@ function TaskCard({ task, onChange }: { task: Task; onChange: () => void }) {
           <Button kind="quiet" label="Done" disabled={busy} onPress={() => run(() => api.complete(task.id))} />
         </View>
       </View>
+      <Button kind="quiet" label={picking ? 'Never mind' : 'Remind me'} onPress={() => setPicking(!picking)} />
+      {picking && reminderPresets().map(({ label, at }) => (
+        <Button
+          key={label}
+          kind="quiet"
+          label={label}
+          disabled={busy}
+          onPress={() => { setPicking(false); run(() => api.patch(task.id, { scheduled_start: at.toISOString(), status: 'scheduled' })); }}
+        />
+      ))}
       {reframed && (
         <T kind="muted" onPress={() => setShowOriginal(!showOriginal)} accessibilityRole="button">
           {showOriginal ? 'Show reframed' : 'Show what I wrote'}

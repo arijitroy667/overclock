@@ -10,6 +10,7 @@ export type Task = {
   applied_pinch_lever: string | null;
   estimated_duration_padded: number | null;
   due_at: string | null;
+  scheduled_start: string | null;
   captured_at: string;
   subtasks: Subtask[];
 };

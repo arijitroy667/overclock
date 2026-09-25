@@ -18,3 +18,16 @@ export async function notifyIn(minutes: number, title: string, body: string): Pr
     trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: Math.max(1, Math.round(minutes * 60)) },
   });
 }
+
+/** Expo push token, for reminders that arrive with the app closed. Needs a development build
+ *  and an EAS project id; in Expo Go there is none, so we quietly stay on local notifications. */
+export async function registerPushToken(): Promise<string | null> {
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+  if (!Notifications || !projectId) return null;
+  try {
+    if (!(await Notifications.requestPermissionsAsync()).granted) return null;
+    return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  } catch {
+    return null;
+  }
+}

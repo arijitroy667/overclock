@@ -72,7 +72,7 @@ export const api = {
   tasks: (energy?: number) => req<Task[]>('/tasks' + (energy ? `?energy=${energy}` : '')),
   resurface: () => req<Task[]>('/tasks/resurface'),
   reframe: (id: string) => req<Task>(`/tasks/${id}/reframe`, { method: 'POST' }),
-  patch: (id: string, body: Partial<Task> & { reframe_accepted?: boolean }) =>
+  patch: (id: string, body: { reframe_accepted?: boolean; scheduled_start?: string; status?: string }) =>
     req<Task>(`/tasks/${id}`, { method: 'PATCH', body }),
   complete: (id: string, actual_duration?: number) =>
     req<Task>(`/tasks/${id}/complete`, { method: 'POST', body: { actual_duration } }),
@@ -91,6 +91,23 @@ export const api = {
   archiveIdea: (id: string) => req(`/ideas/${id}`, { method: 'DELETE' }),
   promoteIdea: (id: string) => req<Task>(`/ideas/${id}/promote`, { method: 'POST' }),
   reflection: () => req<{ week_start: string; text: string }>('/insights/reflection'),
+  addPush: (endpoint: string) =>
+    req('/push/subscriptions', { method: 'POST', body: { platform: 'expo', endpoint, keys: {} } }),
   exportData: () => req<unknown>('/me/export'),
   deleteAccount: () => req('/me', { method: 'DELETE' }),
 };
+
+/** A few coarse times, not a date picker: fewer decisions, and every option is one tap. */
+export function reminderPresets(): { label: string; at: Date }[] {
+  const soon = new Date(Date.now() + 60 * 60 * 1000);
+  const evening = new Date();
+  evening.setHours(18, 0, 0, 0);
+  const morning = new Date();
+  morning.setDate(morning.getDate() + 1);
+  morning.setHours(9, 0, 0, 0);
+  return [
+    { label: 'In an hour', at: soon },
+    ...(evening > new Date() ? [{ label: 'This evening', at: evening }] : []),
+    { label: 'Tomorrow morning', at: morning },
+  ];
+}
