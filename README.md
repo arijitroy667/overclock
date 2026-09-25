@@ -14,7 +14,8 @@ Personal OS for the ADHD brain. Product spec: [prd.md](prd.md) (§15 is the curr
 - [x] Development-build config (`expo-dev-client`, `eas.json`) for system notifications on Android
 - [x] Phase 2: adaptive PINCH-lever choice, AI weekly reflection, Idea Vault, Crisis Sprint Mode
 - [ ] Phase 2 left: passive hyperfocus detection, Focus Rooms (body doubling)
-- [ ] Web push / server-side reminder scheduler, infra (Terraform, CI) — Phase 3
+- [x] CI (GitHub Actions) and Docker images for the API and web
+- [ ] Web push / server-side reminder scheduler, hosting, store release — Phase 3
 
 ## Run the API
 ```sh
@@ -55,3 +56,32 @@ npm run dev          # http://localhost:3000 — set API_URL if the API isn't on
 createdb overclock_test   # on the compose Postgres
 uv run pytest             # DATABASE_URL overrides the test DB
 ```
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push and pull request, on GitHub's free runners:
+
+| Job | What it checks |
+|---|---|
+| `api` | pytest against a real Postgres, and that the migrations still match the models (`alembic check`) |
+| `web` | typecheck, lint, production build |
+| `mobile` | typecheck, lint, Android bundle |
+
+Builds use placeholder Clerk keys, so CI needs no secrets.
+
+## Deploying
+
+Both services are plain Docker images, so any host that runs containers works — including your own machine:
+
+```sh
+docker compose -f compose.prod.yml up -d --build      # API + web + Postgres + Redis
+```
+
+Set these on the host (see `.env.example` in each folder):
+`CLERK_JWKS_URL`, `GEMINI_API_KEY`, `CLERK_AUTHORIZED_PARTIES` (your web origin) for the API;
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (at **build** time — it ends up in the browser bundle),
+`CLERK_SECRET_KEY` and `API_URL` for the web app.
+
+No AWS or Terraform, deliberately — a change from PRD §12. The images are provider-agnostic: a small VPS,
+or a container host plus managed Postgres/Redis, whatever is cheapest at the time. Check current free-tier
+limits before committing to a provider; they change often.

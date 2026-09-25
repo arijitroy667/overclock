@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: overclock
+          POSTGRES_PASSWORD: overclock
+          POSTGRES_DB: overclock_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U overclock"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://overclock:overclock@localhost:5432/overclock_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/api/uv.lock
+      - run: uv sync --locked
+      - run: uv run pytest -q
+      - name: Migrations match the models
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      # Builds must not need real credentials; the running app reads these from its host.
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZHVtbXktZm9yLWJ1aWxkLmNsZXJrLmFjY291bnRzLmRldiQ=
+      CLERK_SECRET_KEY: sk_test_dummy
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZHVtbXktZm9yLWJ1aWxkLmNsZXJrLmFjY291bnRzLmRldiQ=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - run: npx tsc --noEmit
+      - run: npx expo lint
+      - run: npx expo export --platform android --output-dir /tmp/export
