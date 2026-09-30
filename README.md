@@ -2,23 +2,24 @@
 
 Personal OS for the ADHD brain. Product spec: [prd.md](prd.md) (§15 is the current build target).
 
-## Status
-- [x] `services/api` — FastAPI core (capture → Task Alchemy reframe, time padding, resurfacing, focus sessions + guardrails, energy, insights, export/delete)
-- [x] `apps/mobile` — Expo app: capture (offline queue, keyboard dictation for voice), reframed task cards, focus timer with 15/10/5 local reminders + body-check guardrails, energy check-in → filtered tasks, insights, onboarding
-- [x] `apps/web` — Next.js 15 dashboard: same flows as mobile + insights side panel; proxies `/api/v1` to the API (no CORS)
-- [x] `packages/types` — API shapes shared by both apps
-- [x] Clerk sign-in on web + mobile; API verifies session tokens (JWKS + `azp`)
-- [x] Instant capture (reframe runs in the background), Settings: disclaimer, data export, account deletion
-- [x] Alembic migrations (applied automatically on API startup)
-- [x] Comfort preferences synced across devices: calm mode, easier-to-read font (Lexend), reminder timing
-- [x] Development-build config (`expo-dev-client`, `eas.json`) for system notifications on Android
-- [x] Phase 2: adaptive PINCH-lever choice, AI weekly reflection, Idea Vault, Crisis Sprint Mode
-- [ ] Phase 2 left: passive hyperfocus detection, Focus Rooms (body doubling)
-- [x] CI (GitHub Actions) and Docker images for the API and web
-- [x] Web push + server-side reminder scheduler (reminders arrive with the app closed)
-- [x] Focus Rooms (body doubling): presence-only, over a WebSocket. No video — LiveKit would mean a paid
-      or self-hosted server; the PRD's Phase 2 wants presence first anyway
-- [ ] Hosting and store release
+## What's built
+
+Every feature in the PRD except the ones that need paid services (see the end).
+
+| Pillar | Where it shows up |
+|---|---|
+| 1 · Task Alchemy | Capture anything; Gemini rewrites it with the motivation lever that works for you, plus a 2-minute first step. Retries by itself if the model is busy |
+| 2 · Time-Anchor | Padded estimates from your own history, ring timer, reminders at your chosen offsets — delivered even with the app closed |
+| 3 · Capture + resurfacing | Text or voice, works offline, syncs later; forgotten inbox items resurface |
+| 4 · Hyperfocus Guardian | 45 uninterrupted minutes auto-protects the session; body checks after 2 hours that can't be silently dismissed |
+| 5 · Energy mapping | Check in, see the tasks that fit; energy curve in Insights |
+| 6 · RSD-safe | No streak loss, no guilt copy, daily XP cap with a reachable finish line |
+| 7 · Focus Rooms | Presence-only body doubling over a WebSocket |
+| 8 · Crisis Sprint | Opt-in crunch mode, plus an honest nudge if it becomes a habit |
+| 9 · Idea Vault | Park stray ideas away from the task list; promote one when it's ready |
+| 10 · Insights | Weekly AI reflection, which reframe styles get you started, flow patterns, completion rate |
+
+Phase 3: CI, Docker images for the whole stack, web push, server-side reminders, public landing page.
 
 ## Run the API
 ```sh
@@ -55,10 +56,30 @@ npm run dev          # http://localhost:3000 — set API_URL if the API isn't on
 ```
 
 ## Test
+
 ```sh
-createdb overclock_test   # on the compose Postgres
-uv run pytest             # DATABASE_URL overrides the test DB
+cd services/api
+uv run pytest                      # 17 tests, needs the compose Postgres
 ```
+
+End-to-end check of every flow against a running API (real Gemini calls, cleans up after itself):
+
+```sh
+# terminal 1
+cd services/api && DEV_AUTH_USER=verify-bot uv run uvicorn app.main:app --env-file .env --port 8000
+# terminal 2
+cd services/api && uv run python scripts/verify_local.py
+```
+
+`DEV_AUTH_USER` disables sign-in and is for local checks only. Run the app itself without it.
+
+## Not built (needs a paid service)
+
+- **Video in Focus Rooms** — LiveKit means a hosted or self-run media server; presence works today.
+- **App store release** — Google Play ($25 once) and Apple ($99/year) developer accounts.
+- **Payments (Stripe)** and **AWS/Terraform deployment** — deliberately deferred.
+- **pgvector personalization memory** (§11): lever choice learns from your own task history instead, which
+  needs no embeddings. Worth revisiting when lever choice should depend on what a task is about.
 
 ## CI
 

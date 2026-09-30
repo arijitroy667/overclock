@@ -11,6 +11,7 @@ reflection are checked for real; both are allowed to be slow or unavailable with
 """
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -20,7 +21,7 @@ import websockets
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # import app.* when run from scripts/
 
-BASE = "http://localhost:8000"
+BASE = os.environ.get("VERIFY_API", "http://localhost:8000")
 API = f"{BASE}/api/v1"
 results: list[tuple[bool, str, str]] = []
 
