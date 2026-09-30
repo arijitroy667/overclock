@@ -119,9 +119,9 @@ function Focus() {
             : "Focus"}
       </p>
       {autoFlow && (
-        <button onClick={notFlow} className="text-sm text-muted underline">Not flow — keep nudging me</button>
+        <button onClick={notFlow} className="nb-btn px-4 text-sm">Not flow — keep nudging me</button>
       )}
-      <h1 className="text-2xl font-bold">{title}</h1>
+      <h1 className="text-3xl font-extrabold">{title}</h1>
       <div className="relative my-4 grid place-items-center">
         <svg width={260} height={260} role="img" aria-label={`${mm} minutes ${remaining > 0 ? "left" : "over"}`}>
           <circle cx={130} cy={130} r={R} stroke="var(--soft)" strokeWidth={18} fill="none" />
@@ -131,37 +131,37 @@ function Focus() {
           />
         </svg>
         <div className="absolute">
-          <div className="text-5xl font-bold tabular-nums">{remaining < 0 ? "+" : ""}{mm}:{ss}</div>
+          <div className="text-6xl font-black tabular-nums">{remaining < 0 ? "+" : ""}{mm}:{ss}</div>
           <div className="text-sm text-muted">{remaining > 0 ? "left" : "over. No rush"}</div>
         </div>
       </div>
       {!inFlow && !crunch && (
-        <button onClick={() => { inFlowRef.current = true; setInFlow(true); }} className="min-h-12 w-full rounded-xl bg-soft font-medium">
+        <button onClick={() => { inFlowRef.current = true; setInFlow(true); }} className="nb-btn w-full">
           I’m in flow
         </button>
       )}
-      <button onClick={() => leave(true)} className="min-h-12 w-full rounded-xl bg-accent font-semibold text-accent-text">Done</button>
+      <button onClick={() => leave(true)} className="nb-btn nb-btn-acid w-full">Done</button>
       {crunch ? (
-        <button onClick={() => { setCrunch(false); leave(false); }} className="min-h-12 w-full rounded-xl px-4 text-sm text-muted underline">
+        <button onClick={() => { setCrunch(false); leave(false); }} className="nb-btn w-full px-4 text-sm">
           Leave crunch mode
         </button>
       ) : (
         <>
-          <button onClick={() => leave(false)} className="min-h-12 w-full rounded-xl bg-soft font-medium">Step away (it’ll be here)</button>
-          <button onClick={startCrunch} className="min-h-12 w-full rounded-xl px-4 text-sm text-muted underline">
+          <button onClick={() => leave(false)} className="nb-btn w-full">Step away (it’ll be here)</button>
+          <button onClick={startCrunch} className="nb-btn w-full px-4 text-sm">
             Real deadline? Switch to crunch mode
           </button>
         </>
       )}
 
       {guardrailDue && (
-        <div role="dialog" aria-modal="true" aria-labelledby="bodycheck" className="fixed inset-0 grid place-items-center bg-bg p-6">
-          <div className="flex max-w-md flex-col gap-3">
-            <h2 id="bodycheck" className="text-2xl font-bold">Quick body check</h2>
+        <div role="dialog" aria-modal="true" aria-labelledby="bodycheck" className="fixed inset-0 z-20 grid place-items-center bg-bg p-6">
+          <div className="nb flex max-w-md flex-col gap-3 p-6">
+            <h2 id="bodycheck" className="text-3xl font-extrabold">Quick body check</h2>
             <p>You’ve been deep in this for {Math.round(elapsedMin)} minutes. Nice. Take one small thing for your body, then dive back in.</p>
-            <button onClick={() => ack("hydration")} className="min-h-12 rounded-xl bg-soft">Drank some water</button>
-            <button onClick={() => ack("movement")} className="min-h-12 rounded-xl bg-soft">Stood up and stretched</button>
-            <button onClick={() => ack("meal")} className="min-h-12 rounded-xl bg-soft">Grabbed food</button>
+            <button onClick={() => ack("hydration")} className="nb-btn">Drank some water</button>
+            <button onClick={() => ack("movement")} className="nb-btn">Stood up and stretched</button>
+            <button onClick={() => ack("meal")} className="nb-btn">Grabbed food</button>
           </div>
         </div>
       )}

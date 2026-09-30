@@ -1,72 +1,235 @@
 @import "tailwindcss";
 
-/* Same constrained token set as apps/mobile/src/theme.ts: calm, no alarm-red. */
+/* ── Neo-brutalist system ────────────────────────────────────────────────────
+   Flat saturated colour, 3px ink borders, hard un-blurred shadows, chunky type.
+   Three accents only (NN/g: more overwhelms), body type stays quiet and readable,
+   and calm mode (§17) strips the loudness back out for overwhelm moments.        */
 :root {
-  --bg: #f7f6f2;
+  --ink: #0b0b0f;
+  --paper: #f5f2e8;
   --card: #ffffff;
-  --text: #1f2328;
-  --muted: #6b7075;
-  --accent: #3a6ff7;
+  --text: #0b0b0f;
+  --muted: #55535e;
+  --border: #0b0b0f;
+
+  --accent: #6c4cff; /* electric violet — primary actions */
   --accent-text: #ffffff;
-  --soft: #e9eefd;
-  --border: #e3e1da;
-  --warm: #e8a33d;
+  --acid: #ccff00; /* highlights, progress */
+  --hot: #ff4d9d; /* attention, never failure */
+  --warm: var(--hot);
+  --soft: #eae6f8;
+
+  --edge: 3px;
+  --drop: 6px;
+  --shadow: var(--drop) var(--drop) 0 var(--border);
+  --shadow-sm: 3px 3px 0 var(--border);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14161a;
-    --card: #1d2026;
-    --text: #ecedee;
-    --muted: #9ba1a6;
-    --accent: #7b9dff;
-    --accent-text: #0e1116;
-    --soft: #252c3d;
-    --border: #2c3038;
-    --warm: #f0b35a;
+  :root:not([data-theme="light"]) {
+    --ink: #f5f2e8;
+    --paper: #0d0d12;
+    --card: #17171f;
+    --text: #f5f2e8;
+    --muted: #a5a1b2;
+    --border: #f5f2e8;
+    --accent: #9b7bff;
+    --accent-text: #0b0b0f;
+    --acid: #ccff00;
+    --hot: #ff6fb0;
+    --soft: #23222e;
   }
 }
 
-/* Calm mode (§17): same layout, fewer and quieter colors, no motion. */
+/* Calm mode (§17): same structure, the shouting turned down. */
 :root[data-calm="true"] {
-  --accent: #66758a;
+  --accent: #5a6b7d;
+  --acid: #d8dde2;
+  --hot: #8a8f99;
   --soft: #eceef1;
-  --warm: #8a9099;
+  --drop: 3px;
 }
 @media (prefers-color-scheme: dark) {
   :root[data-calm="true"] {
     --accent: #8e9aad;
+    --acid: #3a3f46;
+    --hot: #9aa0a8;
     --soft: #23272e;
-    --warm: #9aa0a8;
   }
 }
-:root[data-calm="true"] * { transition: none !important; animation: none !important; }
+:root[data-calm="true"] * {
+  transition: none !important;
+  animation: none !important;
+}
 
 :root[data-font="dyslexia"] body {
   font-family: var(--font-lexend), system-ui, sans-serif;
   letter-spacing: 0.02em;
   word-spacing: 0.08em;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 @theme inline {
-  --color-bg: var(--bg);
+  --color-bg: var(--paper);
   --color-card: var(--card);
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-accent-text: var(--accent-text);
+  --color-acid: var(--acid);
+  --color-hot: var(--hot);
   --color-soft: var(--soft);
   --color-border: var(--border);
   --color-warm: var(--warm);
+  --font-display: var(--font-space-grotesk), system-ui, sans-serif;
 }
 
 body {
-  background: var(--bg);
+  background: var(--paper);
   color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-space-grotesk), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+h1, h2, h3, .display {
+  font-family: var(--font-space-grotesk), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* ── Components ──────────────────────────────────────────────────────────── */
+.nb {
+  border: var(--edge) solid var(--border);
+  box-shadow: var(--shadow);
+  background: var(--card);
+  border-radius: 2px;
+}
+
+.nb-flat {
+  border: var(--edge) solid var(--border);
+  border-radius: 2px;
+  background: var(--card);
+}
+
+/* Buttons press into their own shadow instead of glowing or fading. */
+.nb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0 1.25rem;
+  border: var(--edge) solid var(--border);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+  transition: transform 80ms steps(2), box-shadow 80ms steps(2);
+}
+.nb-btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--border);
+}
+.nb-btn:active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 var(--border);
+}
+.nb-btn:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+}
+.nb-btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.nb-btn-acid {
+  background: var(--acid);
+  color: #0b0b0f;
+}
+
+.nb-input {
+  min-height: 3rem;
+  padding: 0 1rem;
+  border: var(--edge) solid var(--border);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+.nb-input:focus-visible,
+.nb-btn:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.nb-input::placeholder {
+  color: var(--muted);
+}
+
+.nb-tag {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border: 2px solid var(--border);
+  border-radius: 2px;
+  background: var(--acid);
+  color: #0b0b0f;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* The highlight always carries dark text: cream on acid is unreadable in dark mode. */
+.nb-marker {
+  background: linear-gradient(transparent 58%, var(--acid) 58%);
+  color: #0b0b0f;
+  padding: 0 0.08em;
+}
+:root[data-calm="true"] .nb-marker { color: inherit; }
+
+/* ── Animated backdrop ───────────────────────────────────────────────────────
+   A drifting grid with a few hard-edged shapes. Transform-only, so it stays on
+   the compositor; switched off entirely for reduced motion and calm mode.       */
+.nb-grid {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--border) 12%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--border) 12%, transparent) 1px, transparent 1px);
+  background-size: 46px 46px;
+  animation: nb-drift 24s linear infinite;
+}
+
+@keyframes nb-drift {
+  to { background-position: 46px 46px; }
+}
+
+.nb-blob {
+  position: fixed;
+  z-index: -1;
+  border: var(--edge) solid var(--border);
+  border-radius: 2px;
+  opacity: 0.8;
+  will-change: transform;
+}
+.nb-blob-1 { width: 190px; height: 190px; background: var(--acid); animation: nb-float-1 19s ease-in-out infinite; }
+.nb-blob-2 { width: 130px; height: 130px; background: var(--hot); border-radius: 50%; animation: nb-float-2 23s ease-in-out infinite; }
+.nb-blob-3 { width: 160px; height: 160px; background: var(--accent); animation: nb-float-3 27s ease-in-out infinite; }
+
+@keyframes nb-float-1 {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(8deg); }
+  50% { transform: translate3d(36px, -44px, 0) rotate(-6deg); }
+}
+@keyframes nb-float-2 {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-48px, 34px, 0); }
+}
+@keyframes nb-float-3 {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-10deg); }
+  50% { transform: translate3d(28px, 40px, 0) rotate(12deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
+  *, ::before, ::after { transition: none !important; animation: none !important; }
 }

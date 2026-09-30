@@ -80,7 +80,7 @@ export default function Settings() {
   return (
     <main className="mx-auto flex max-w-xl flex-col gap-4 p-4 md:p-8">
       <Link href="/" className="text-sm text-muted underline">← Back</Link>
-      <h1 className="text-2xl font-bold">Settings</h1>
+      <h1 className="text-4xl font-extrabold">Settings</h1>
 
       <Card title="What Overclock is (and isn’t)">
         <p>{disclaimer}</p>
@@ -114,7 +114,7 @@ export default function Settings() {
                 key={preset.join()}
                 onClick={() => update({ reminder_offsets: preset })}
                 aria-pressed={active}
-                className={`min-h-11 rounded-xl px-3 text-sm font-medium ${active ? "bg-accent text-accent-text" : "bg-soft"}`}
+                className={`nb-btn px-3 text-sm ${active ? "nb-btn-primary" : ""}`}
               >
                 {preset.join(" · ")} min
               </button>
@@ -125,17 +125,17 @@ export default function Settings() {
 
       <Card title="Your data">
         <p className="text-sm text-muted">Everything you’ve captured, logged and finished, as a JSON file.</p>
-        <button onClick={exportData} className="min-h-11 self-start rounded-xl bg-soft px-4 font-medium">Download my data</button>
+        <button onClick={exportData} className="nb-btn self-start">Download my data</button>
       </Card>
 
       <Card title="Delete account">
         <p className="text-sm text-muted">Permanently removes your tasks, sessions, energy logs and sign-in. This can’t be undone.</p>
         <label className="text-sm" htmlFor="confirm">Type <b>delete</b> to confirm</label>
-        <input id="confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="min-h-11 rounded-xl border border-border bg-card px-3" />
+        <input id="confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="nb-input" />
         <button
           disabled={confirm.trim().toLowerCase() !== "delete" || busy}
           onClick={deleteAccount}
-          className="min-h-11 self-start rounded-xl bg-text px-4 font-medium text-bg disabled:opacity-40"
+          className="nb-btn self-start"
         >
           {busy ? "Deleting…" : "Delete my account"}
         </button>
@@ -160,8 +160,8 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint: strin
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4">
-      <h2 className="font-semibold">{title}</h2>
+    <section className="nb flex flex-col gap-2 p-4">
+      <h2 className="text-xl font-extrabold">{title}</h2>
       {children}
     </section>
   );

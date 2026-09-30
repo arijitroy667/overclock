@@ -49,7 +49,7 @@ export default function Rooms() {
     return (
       <main className="mx-auto flex max-w-lg flex-col items-center gap-4 p-6 text-center">
         <p className="text-sm text-muted">{rooms.find((r) => r.id === joined)?.theme}</p>
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-3xl font-extrabold">
           {others > 0 ? `Working alongside ${others} other${others > 1 ? "s" : ""}` : "You’re first in here"}
         </h1>
         <p className="text-sm text-muted">
@@ -57,10 +57,10 @@ export default function Rooms() {
         </p>
         <div className="flex flex-wrap justify-center gap-2">
           {(presence?.people ?? []).map((person) => (
-            <span key={person.id} className="rounded-full bg-soft px-4 py-2 text-sm">{person.name}</span>
+            <span key={person.id} className="nb-flat bg-soft px-4 py-2 text-sm font-bold">{person.name}</span>
           ))}
         </div>
-        <button onClick={leave} className="min-h-12 w-full rounded-xl bg-soft font-medium">Leave the room</button>
+        <button onClick={leave} className="nb-btn w-full">Leave the room</button>
         <Link href="/" className="text-sm text-muted underline">Back to your tasks</Link>
       </main>
     );
@@ -69,20 +69,20 @@ export default function Rooms() {
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4 md:p-8">
       <Link href="/" className="text-sm text-muted underline">← Back</Link>
-      <h1 className="text-2xl font-bold">Focus rooms</h1>
+      <h1 className="text-4xl font-extrabold">Focus rooms</h1>
       <p className="text-sm text-muted">
         Body doubling: work while others work. Presence only — nobody can see or hear you.
       </p>
       {note && <p className="text-sm text-muted">{note}</p>}
       {rooms.map((room) => (
-        <div key={room.id} className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4">
+        <div key={room.id} className="nb flex items-center justify-between gap-4 p-4">
           <div>
-            <h2 className="font-semibold">{room.theme}</h2>
+            <h2 className="text-xl font-extrabold">{room.theme}</h2>
             <p className="text-sm text-muted">
               {room.count === 0 ? "Nobody here right now" : `${room.count} here now`}
             </p>
           </div>
-          <button onClick={() => join(room.id)} className="min-h-11 rounded-xl bg-accent px-5 font-semibold text-accent-text">
+          <button onClick={() => join(room.id)} className="nb-btn nb-btn-primary">
             Join
           </button>
         </div>

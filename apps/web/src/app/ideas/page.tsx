@@ -39,7 +39,7 @@ export default function Ideas() {
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4 md:p-8">
       <Link href="/" className="text-sm text-muted underline">← Back</Link>
-      <h1 className="text-2xl font-bold">Idea vault</h1>
+      <h1 className="text-4xl font-extrabold">Idea vault</h1>
       <p className="text-sm text-muted">
         Somewhere to park the thoughts that show up mid-task. Nothing here nags you, and nothing here counts against you.
       </p>
@@ -50,22 +50,22 @@ export default function Ideas() {
           onChange={(e) => setText(e.target.value)}
           placeholder="Park an idea…"
           aria-label="Park an idea"
-          className="min-h-12 flex-1 rounded-xl border border-border bg-card px-4 outline-none focus:border-accent"
+          className="nb-input flex-1"
         />
-        <button className="min-h-12 rounded-xl bg-accent px-5 font-semibold text-accent-text">Park it</button>
+        <button className="nb-btn nb-btn-primary">Park it</button>
       </form>
       {note && <p className="text-sm text-muted">{note}</p>}
 
       {ideas.length === 0 && <p className="text-sm text-muted">Empty for now. That is a perfectly good state.</p>}
       {ideas.map((idea) => (
-        <div key={idea.id} className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4">
+        <div key={idea.id} className="nb flex flex-col gap-2 p-4">
           <p>{idea.text}</p>
           <p className="text-sm text-muted">{new Date(idea.created_at).toLocaleDateString()}</p>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => run(() => api.promoteIdea(idea.id), "Added to your tasks.")} className="min-h-11 rounded-xl bg-soft px-4">
+            <button onClick={() => run(() => api.promoteIdea(idea.id), "Added to your tasks.")} className="nb-btn nb-btn-acid">
               Make it a task
             </button>
-            <button onClick={() => run(() => api.archiveIdea(idea.id), "Tucked away.")} className="min-h-11 rounded-xl px-4 text-muted underline">
+            <button onClick={() => run(() => api.archiveIdea(idea.id), "Tucked away.")} className="nb-btn px-4">
               Let it go
             </button>
           </div>

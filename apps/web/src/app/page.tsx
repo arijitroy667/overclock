@@ -32,13 +32,13 @@ export default function Dashboard() {
 
   return (
     <main className="mx-auto max-w-5xl p-4 md:p-8">
-      <header className="mb-6 flex items-baseline justify-between">
-        <h1 className="text-2xl font-bold">Overclock</h1>
+      <header className="nb mb-6 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <h1 className="text-xl font-extrabold tracking-tight">OVERCLOCK</h1>
         <div className="flex items-center gap-3">
           {offline && <p className="text-sm text-muted">Can’t reach the server. Captures still save.</p>}
-          <Link href="/rooms" className="text-sm text-muted underline">Rooms</Link>
-          <Link href="/ideas" className="text-sm text-muted underline">Ideas</Link>
-          <Link href="/settings" className="text-sm text-muted underline">Settings</Link>
+          <Link href="/rooms" className="min-h-11 px-2 text-sm font-bold uppercase tracking-wide">Rooms</Link>
+          <Link href="/ideas" className="min-h-11 px-2 text-sm font-bold uppercase tracking-wide">Ideas</Link>
+          <Link href="/settings" className="min-h-11 px-2 text-sm font-bold uppercase tracking-wide">Settings</Link>
           <UserButton />
         </div>
       </header>
@@ -82,17 +82,17 @@ function Home() {
               <button
                 key={label}
                 onClick={() => pickEnergy(i + 1)}
-                className={`min-h-11 rounded-xl px-3 text-sm font-medium ${energy === i + 1 ? "bg-accent text-accent-text" : "bg-soft"}`}
+                className={`nb-btn px-3 text-sm ${energy === i + 1 ? "nb-btn-primary" : ""}`}
               >
                 {i + 1} · {label}
               </button>
             ))}
-            {energy && <button onClick={() => setEnergy(undefined)} className="min-h-11 px-3 text-sm text-muted underline">Show everything</button>}
+            {energy && <button onClick={() => setEnergy(undefined)} className="nb-btn px-3 text-sm">Show everything</button>}
           </div>
         </Card>
-        {resurfaced.length > 0 && <h2 className="text-lg font-semibold">From a few days ago</h2>}
+        {resurfaced.length > 0 && <h2 className="text-lg font-extrabold uppercase tracking-wide">From a few days ago</h2>}
         {resurfaced.map((t) => <TaskCard key={t.id} task={t} onChange={load} />)}
-        {tasks.some((t) => !resurfacedIds.has(t.id)) && <h2 className="text-lg font-semibold">Up next</h2>}
+        {tasks.some((t) => !resurfacedIds.has(t.id)) && <h2 className="text-lg font-extrabold uppercase tracking-wide">Up next</h2>}
         {tasks.filter((t) => !resurfacedIds.has(t.id)).map((t) => <TaskCard key={t.id} task={t} onChange={load} />)}
       </section>
       <aside>{insights && <InsightsPanel data={insights} />}</aside>
@@ -147,7 +147,7 @@ function Capture({ onCaptured }: { onCaptured: () => void }) {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-2">
-      <label htmlFor="capture" className="text-xl font-semibold">What’s on your mind?</label>
+      <label htmlFor="capture" className="text-2xl font-extrabold">What’s on your mind?</label>
       <div className="flex gap-2">
         <input
           id="capture"
@@ -155,7 +155,7 @@ function Capture({ onCaptured }: { onCaptured: () => void }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Dump it here. We’ll make it easier to start."
-          className="min-h-12 flex-1 rounded-xl border border-border bg-card px-4 outline-none focus:border-accent"
+          className="nb-input flex-1"
         />
         {canDictate && (
           <button
@@ -163,12 +163,12 @@ function Capture({ onCaptured }: { onCaptured: () => void }) {
             onClick={toggleDictation}
             aria-label={listening ? "Stop listening" : "Capture by voice"}
             aria-pressed={listening}
-            className={`min-h-12 rounded-xl px-4 text-lg ${listening ? "bg-accent text-accent-text" : "bg-soft"}`}
+            className={`nb-btn text-lg ${listening ? "nb-btn-primary" : ""}`}
           >
             {listening ? "◼" : "🎙"}
           </button>
         )}
-        <button disabled={busy} className="min-h-12 rounded-xl bg-accent px-5 font-semibold text-accent-text disabled:opacity-50">
+        <button disabled={busy} className="nb-btn nb-btn-primary">
           {busy ? "…" : "Add"}
         </button>
       </div>
@@ -207,17 +207,17 @@ function TaskCard({ task, onChange }: { task: Task; onChange: () => void }) {
   ].filter(Boolean).join(" · ");
   return (
     <Card>
-      <h3 className="text-lg font-semibold">{showOriginal || !reframed ? task.raw_input_text : task.reframed_title}</h3>
+      <h3 className="text-xl font-extrabold">{showOriginal || !reframed ? task.raw_input_text : task.reframed_title}</h3>
       {task.first_step && <p>First step: {task.first_step}</p>}
       {isReframing(task) && <p className="text-sm text-muted">Finding a better angle…</p>}
       {meta && <p className="text-sm text-muted">{meta}</p>}
       <div className="flex flex-wrap gap-2">
-        <button onClick={start} className="min-h-11 rounded-xl bg-accent px-5 font-semibold text-accent-text">Start</button>
-        <button disabled={busy} onClick={() => run(() => api.reframe(task.id))} className="min-h-11 rounded-xl bg-soft px-4 disabled:opacity-50">Another angle</button>
-        <button disabled={busy} onClick={() => run(() => api.complete(task.id))} className="min-h-11 rounded-xl bg-soft px-4 disabled:opacity-50">Done</button>
-        <button onClick={() => setPicking(!picking)} className="min-h-11 rounded-xl bg-soft px-4">Remind me</button>
+        <button onClick={start} className="nb-btn nb-btn-primary">Start</button>
+        <button disabled={busy} onClick={() => run(() => api.reframe(task.id))} className="nb-btn">Another angle</button>
+        <button disabled={busy} onClick={() => run(() => api.complete(task.id))} className="nb-btn nb-btn-acid">Done</button>
+        <button onClick={() => setPicking(!picking)} className="nb-btn">Remind me</button>
         {reframed && (
-          <button onClick={() => setShowOriginal(!showOriginal)} className="px-2 text-sm text-muted underline">
+          <button onClick={() => setShowOriginal(!showOriginal)} className="min-h-11 px-2 text-sm text-muted underline">
             {showOriginal ? "Show reframed" : "Show what I wrote"}
           </button>
         )}
@@ -229,7 +229,7 @@ function TaskCard({ task, onChange }: { task: Task; onChange: () => void }) {
               key={label}
               disabled={busy}
               onClick={() => { setPicking(false); run(() => api.patch(task.id, { scheduled_start: at.toISOString(), status: "scheduled" })); }}
-              className="min-h-11 rounded-xl bg-soft px-4 text-sm"
+              className="nb-btn px-4 text-sm"
             >
               {label}
             </button>
@@ -250,30 +250,30 @@ function InsightsPanel({ data }: { data: Insights }) {
     <div className="flex flex-col gap-4">
       {reflection && (
         <Card>
-          <h2 className="font-semibold">Your week, in words</h2>
+          <h2 className="font-extrabold">Your week, in words</h2>
           <p className="text-sm">{reflection}</p>
         </Card>
       )}
       <Card>
-        <h2 className="font-semibold">Showed up {data.days_active_this_week} of the last 7 days</h2>
+        <h2 className="font-extrabold">Showed up {data.days_active_this_week} of the last 7 days</h2>
         <p className="text-sm text-muted">{data.days_active_total} days total. Gaps don’t reset anything.</p>
       </Card>
       <Card>
-        <h2 className="font-semibold">Level {data.level} · {data.xp} XP</h2>
-        <div className="h-2.5 overflow-hidden rounded-full bg-soft">
-          <div className="h-full bg-accent" style={{ width: `${(data.xp_today / data.xp_daily_cap) * 100}%` }} />
+        <h2 className="font-extrabold">Level {data.level} · {data.xp} XP</h2>
+        <div className="h-4 overflow-hidden border-2 border-border bg-soft">
+          <div className="h-full bg-acid" style={{ width: `${(data.xp_today / data.xp_daily_cap) * 100}%` }} />
         </div>
         <p className="text-sm text-muted">
           {data.xp_today >= data.xp_daily_cap ? "Today’s XP is full. That’s a real finish line." : `${data.xp_today} / ${data.xp_daily_cap} XP today`}
         </p>
       </Card>
       <Card>
-        <h2 className="font-semibold">Finished this week</h2>
+        <h2 className="font-extrabold">Finished this week</h2>
         <p>{data.completion_rate === null ? "Nothing captured yet" : `${Math.round(data.completion_rate * 100)}% of what you captured`}</p>
       </Card>
       {data.best_lever && (
         <Card>
-          <h2 className="font-semibold">What gets you started</h2>
+          <h2 className="font-extrabold">What gets you started</h2>
           <p className="text-sm text-muted">
             {LEVER_WORDS[data.best_lever.lever] ?? data.best_lever.lever} works best so far —
             you started {data.best_lever.started} of {data.best_lever.reframed} tasks framed that way.
@@ -284,7 +284,7 @@ function InsightsPanel({ data }: { data: Insights }) {
       )}
       {data.hyperfocus_sessions_14d > 0 && (
         <Card>
-          <h2 className="font-semibold">Flow shows up</h2>
+          <h2 className="font-extrabold">Flow shows up</h2>
           <p className="text-sm text-muted">
             {data.hyperfocus_sessions_14d} deep sessions in two weeks
             {data.hyperfocus_peak_hour !== null && `, most often around ${data.hyperfocus_peak_hour}:00`}
@@ -294,7 +294,7 @@ function InsightsPanel({ data }: { data: Insights }) {
       )}
       {data.crisis_overuse && (
         <Card>
-          <h2 className="font-semibold">Crunch mode has been on a lot</h2>
+          <h2 className="font-extrabold">Crunch mode has been on a lot</h2>
           <p className="text-sm text-muted">
             {data.crisis_sprints_14d} sprints in two weeks. It works, and living there is tiring. Worth asking what keeps
             landing at the last minute.
@@ -303,11 +303,11 @@ function InsightsPanel({ data }: { data: Insights }) {
       )}
       {energy.length > 0 && (
         <Card>
-          <h2 className="font-semibold">Energy</h2>
+          <h2 className="font-extrabold">Energy</h2>
           <div className="flex h-24 items-end gap-2" role="img" aria-label={energy.map(([d, v]) => `${d}: ${v} of 5`).join(", ")}>
             {energy.map(([day, avg]) => (
               <div key={day} className="flex flex-1 flex-col items-center gap-1">
-                <div className="w-3/4 rounded-md bg-accent" style={{ height: `${(avg / 5) * 72}px` }} />
+                <div className="w-3/4 border-2 border-border bg-accent" style={{ height: `${(avg / 5) * 72}px` }} />
                 <span className="text-xs text-muted">{new Date(day).toLocaleDateString(undefined, { weekday: "short" })}</span>
               </div>
             ))}
@@ -338,13 +338,13 @@ function Onboarding({ me, onDone }: { me: Me; onDone: () => void }) {
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-4">
-      <h2 className="text-2xl font-bold">Welcome to Overclock</h2>
+      <h2 className="text-3xl font-extrabold">Welcome to Overclock</h2>
       <p>Tools built around how an ADHD brain actually runs: capture fast, start small, let the app hold the clock.</p>
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="What should we call you? (optional)"
-        className="min-h-12 rounded-xl border border-border bg-card px-4"
+        className="nb-input"
       />
       <Card>
         <h3 className="font-semibold">Before you start</h3>
@@ -355,7 +355,7 @@ function Onboarding({ me, onDone }: { me: Me; onDone: () => void }) {
         </label>
       </Card>
       {error && <p className="text-sm text-muted">{error}</p>}
-      <button disabled={!accepted} onClick={finish} className="min-h-12 rounded-xl bg-accent font-semibold text-accent-text disabled:opacity-50">
+      <button disabled={!accepted} onClick={finish} className="nb-btn nb-btn-primary">
         Let’s go
       </button>
     </div>
@@ -363,5 +363,5 @@ function Onboarding({ me, onDone }: { me: Me; onDone: () => void }) {
 }
 
 function Card({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4">{children}</div>;
+  return <div className="nb flex flex-col gap-2 p-4">{children}</div>;
 }
