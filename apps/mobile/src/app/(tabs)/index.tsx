@@ -104,8 +104,11 @@ function TaskCard({ task, onChange }: { task: Task; onChange: () => void }) {
       {task.first_step && <T>First step: {task.first_step}</T>}
       {isReframing(task) && <T kind="muted">Finding a better angle…</T>}
       <T kind="muted">
-        {[task.estimated_duration_padded && `~${task.estimated_duration_padded} min`, task.due_at && `due ${new Date(task.due_at).toLocaleDateString()}`]
-          .filter(Boolean).join(' · ')}
+        {[
+          task.estimated_duration_padded && `~${task.estimated_duration_padded} min`,
+          task.scheduled_start && `reminder ${new Date(task.scheduled_start).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`,
+          task.due_at && `due ${new Date(task.due_at).toLocaleDateString()}`,
+        ].filter(Boolean).join(' · ')}
       </T>
       <Button label="Start" onPress={start} />
       <View style={{ flexDirection: 'row', gap: space.sm }}>

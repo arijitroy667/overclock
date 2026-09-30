@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from . import motivator, push, scheduler
+from . import motivator, push, reframing, scheduler
 from . import reflection as reflection_agent
 from .db import EnergyLog, FocusSession, Idea, PushSubscription, Reminder, ReflectionSummary, Session, Subtask, Task, User, now
 
@@ -225,49 +225,6 @@ async def _own_task(db: AsyncSession, me: User, task_id: str) -> Task:
     return task
 
 
-STARTED = ("in_progress", "done")
-
-
-async def _lever_stats(db: AsyncSession, user_id: str) -> dict[str, tuple[int, int]]:
-    """Per-lever (started, reframed) — did this framing actually get the user moving (§9 KPI 2)?
-
-    Every reframed task counts in the denominator, including ones still sitting in the inbox:
-    a lever that never gets you started has to be able to look bad.
-    """
-    rows = (await db.execute(
-        select(
-            Task.applied_pinch_lever,
-            func.sum(case((Task.status.in_(STARTED), 1), else_=0)),
-            func.count(),
-        ).where(Task.user_id == user_id, Task.applied_pinch_lever.is_not(None))
-        .group_by(Task.applied_pinch_lever)
-    )).all()
-    return {lever: (int(started), total) for lever, started, total in rows}
-
-
-async def _apply_reframe(db: AsyncSession, me: User, task: Task) -> None:
-    lever = motivator.choose_lever(await _lever_stats(db, me.id))
-    if lever == task.applied_pinch_lever:  # re-reframe: always try a different angle
-        n = await db.scalar(select(func.count()).select_from(Task).where(Task.user_id == me.id))
-        lever = motivator.pick_lever(n)
-    r = await motivator.reframe(task.raw_input_text, lever)
-    if not r:
-        return
-    history = (await db.execute(
-        select(Task.estimated_duration_raw, Task.actual_duration).where(
-            Task.user_id == me.id, Task.category == r.category, Task.actual_duration.is_not(None)
-        )
-    )).all()
-    task.category = r.category
-    task.reframed_title = r.reframed_title
-    task.first_step = r.first_step
-    task.applied_pinch_lever = lever
-    task.reframe_accepted = None
-    task.estimated_duration_raw = r.estimated_minutes
-    task.estimated_duration_padded = motivator.pad(r.estimated_minutes, history)
-    task.subtasks = [Subtask(title=t, order_index=i) for i, t in enumerate(r.subtasks)]
-
-
 @api.post("/tasks/capture", response_model=TaskOut)
 async def capture(body: CaptureIn, me: Me, db: Db, background: BackgroundTasks):
     """Saves and returns instantly; the reframe lands a few seconds later (clients refetch)."""
@@ -279,12 +236,11 @@ async def capture(body: CaptureIn, me: Me, db: Db, background: BackgroundTasks):
 
 
 async def _reframe_later(task_id: str) -> None:
-    # ponytail: in-process background task; a crash mid-reframe leaves the task unreframed ("Another angle" retries).
-    # Move to Celery/SQS when reframes need retries across restarts.
+    """Runs after the response. If the model is down or out of quota, the scheduler retries later."""
     async with Session() as db:
         task = await db.get(Task, task_id)
         if task:
-            await _apply_reframe(db, await db.get(User, task.user_id), task)
+            await reframing.apply(db, await db.get(User, task.user_id), task)
             await db.commit()
 
 
@@ -340,7 +296,7 @@ async def patch_task(task_id: str, body: TaskPatch, me: Me, db: Db):
 @api.post("/tasks/{task_id}/reframe", response_model=TaskOut)
 async def rereframe(task_id: str, me: Me, db: Db):
     task = await _own_task(db, me, task_id)
-    await _apply_reframe(db, me, task)
+    await reframing.apply(db, me, task)
     await db.commit()
     return task
 
@@ -668,7 +624,7 @@ async def reflection(me: Me, db: Db, regenerate: bool = False):
         return {"week_start": week_start, "text": existing.generated_text}
 
     metrics = await _weekly_metrics(me, db)
-    metrics["levers"] = {lever: {"started": started, "reframed": total} for lever, (started, total) in (await _lever_stats(db, me.id)).items()}
+    metrics["levers"] = {lever: {"started": started, "reframed": total} for lever, (started, total) in (await reframing.lever_stats(db, me.id)).items()}
     text = await reflection_agent.summarize(metrics)
     if not text:
         raise HTTPException(503, "Couldn’t write your reflection just now. Try again in a bit.")

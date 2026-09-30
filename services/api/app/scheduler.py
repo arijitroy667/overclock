@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from sqlalchemy import delete, select
 
-from . import push
+from . import push, reframing
 from .db import PushSubscription, Reminder, Session, Task, User, now
 
 log = logging.getLogger(__name__)
@@ -60,12 +60,39 @@ async def deliver_due() -> int:
         return len(due)
 
 
+RETRY_REFRAME_AFTER = timedelta(minutes=10)  # Gemini outages and free-tier quotas recover on their own
+RETRY_BATCH = 3
+
+
+async def retry_reframes() -> int:
+    """Reframe captures the model couldn't handle earlier, so a quota blip doesn't leave them bare."""
+    async with Session() as db:
+        stale = (await db.scalars(
+            select(Task).where(
+                Task.reframed_title.is_(None),
+                Task.status == "inbox",
+                Task.reframe_attempts < reframing.MAX_ATTEMPTS,
+                Task.reframe_attempted_at < now() - RETRY_REFRAME_AFTER,
+            ).order_by(Task.captured_at).limit(RETRY_BATCH)
+        )).all()
+        done = 0
+        for task in stale:
+            user = await db.get(User, task.user_id)
+            if user and await reframing.apply(db, user, task):
+                done += 1
+        await db.commit()
+        return done
+
+
 async def run() -> None:
     while True:
         try:
             sent = await deliver_due()
             if sent:
                 log.info("sent %d reminder(s)", sent)
+            retried = await retry_reframes()
+            if retried:
+                log.info("reframed %d task(s) on retry", retried)
         except Exception as e:  # keep ticking through database blips
             log.error("scheduler tick failed: %s", e)
         await asyncio.sleep(TICK_SECONDS)

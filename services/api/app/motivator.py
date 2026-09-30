@@ -48,7 +48,8 @@ def _gemini() -> genai.Client:
     if _client is None:  # lazy: reads GEMINI_API_KEY; the API still boots (and captures) without it
         _client = genai.Client(http_options=types.HttpOptions(
             timeout=10_000,
-            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=0.5, http_status_codes=[429, 500, 503]),
+            # 429 (quota) is left out on purpose: it can't clear in half a second, so the scheduler retries it later
+            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=0.5, http_status_codes=[500, 503]),
         ))
     return _client
 

@@ -60,6 +60,8 @@ class Task(Base):
     scheduled_end: Mapped[datetime | None]
     completed_at: Mapped[datetime | None]
     last_surfaced_at: Mapped[datetime | None]
+    reframe_attempts: Mapped[int] = mapped_column(default=0, server_default="0")
+    reframe_attempted_at: Mapped[datetime | None]
     subtasks: Mapped[list["Subtask"]] = relationship(
         order_by="Subtask.order_index", cascade="all, delete-orphan", lazy="selectin"
     )

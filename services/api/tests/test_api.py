@@ -324,3 +324,37 @@ def test_focus_room_presence(client):
     with _pytest.raises(_Disconnect):  # unknown room
         with client.websocket_connect("/ws/focus-room/nope?token=u1") as bad:
             bad.receive_json()
+
+
+def test_failed_reframe_is_retried_later(client, monkeypatch):
+    from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from app import motivator, scheduler
+    from app.db import Session as DbSession, Task, now
+
+    attempts = {"n": 0}
+
+    async def flaky(text, lever):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            return None  # e.g. Gemini out of quota
+        return motivator.Reframe(category="chore", reframed_title="Later, but reframed", first_step="Stand up",
+                                 subtasks=[], estimated_minutes=10)
+
+    monkeypatch.setattr(motivator, "reframe", flaky)
+    task = client.post("/api/v1/tasks/capture", json={"text": "water the plants"}, headers=h()).json()
+    assert client.get("/api/v1/tasks", headers=h()).json()[0]["reframed_title"] is None  # capture survived
+
+    assert client.portal.call(scheduler.retry_reframes) == 0  # not yet: backoff hasn't elapsed
+
+    async def age_attempt():
+        async with DbSession() as db:
+            stale = await db.scalar(select(Task).where(Task.id == task["id"]))
+            stale.reframe_attempted_at = now() - scheduler.RETRY_REFRAME_AFTER - timedelta(minutes=1)
+            await db.commit()
+
+    client.portal.call(age_attempt)
+    assert client.portal.call(scheduler.retry_reframes) == 1
+    assert client.get("/api/v1/tasks", headers=h()).json()[0]["reframed_title"] == "Later, but reframed"

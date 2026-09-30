@@ -3,9 +3,10 @@
 import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { api, capture, flushQueue, isReframing, reminderPresets, type Insights, type Me, type Task } from "@/lib/api";
+import { dictate, dictationSupported } from "@/lib/dictation";
 
 const ENERGY = ["Running on fumes", "Low", "Okay", "Good", "Charged up"];
 
@@ -94,11 +95,27 @@ function Capture({ onCaptured }: { onCaptured: () => void }) {
   const [text, setText] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [canDictate, setCanDictate] = useState(false);
+  const recorder = useRef<{ stop: () => void } | null>(null);
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    const value = text.trim();
-    if (!value) return;
+  useEffect(() => setCanDictate(dictationSupported()), []);
+
+  function toggleDictation() {
+    if (listening) {
+      recorder.current?.stop();
+      return;
+    }
+    setListening(true);
+    setNote("Listening…");
+    recorder.current = dictate((heard) => {
+      setListening(false);
+      setNote(heard ? null : "Didn’t catch that. Try again, or type it.");
+      if (heard) void submitText(heard); // straight in: speaking it should be the whole interaction
+    });
+  }
+
+  async function submitText(value: string) {
     setBusy(true);
     setText("");
     try {
@@ -106,11 +123,17 @@ function Capture({ onCaptured }: { onCaptured: () => void }) {
       setNote(task ? null : "Saved in this browser. It’ll sync when you’re back online.");
       onCaptured();
     } catch (err) {
-      setText(value); // never drop what they typed
+      setText(value); // never drop what they said or typed
       setNote((err as Error).message);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const value = text.trim();
+    if (value) await submitText(value);
   }
 
   return (
@@ -125,6 +148,17 @@ function Capture({ onCaptured }: { onCaptured: () => void }) {
           placeholder="Dump it here. We’ll make it easier to start."
           className="min-h-12 flex-1 rounded-xl border border-border bg-card px-4 outline-none focus:border-accent"
         />
+        {canDictate && (
+          <button
+            type="button"
+            onClick={toggleDictation}
+            aria-label={listening ? "Stop listening" : "Capture by voice"}
+            aria-pressed={listening}
+            className={`min-h-12 rounded-xl px-4 text-lg ${listening ? "bg-accent text-accent-text" : "bg-soft"}`}
+          >
+            {listening ? "◼" : "🎙"}
+          </button>
+        )}
         <button disabled={busy} className="min-h-12 rounded-xl bg-accent px-5 font-semibold text-accent-text disabled:opacity-50">
           {busy ? "…" : "Add"}
         </button>
@@ -156,8 +190,12 @@ function TaskCard({ task, onChange }: { task: Task; onChange: () => void }) {
     try { await fn(); onChange(); } finally { setBusy(false); }
   }
 
-  const meta = [task.estimated_duration_padded && `~${task.estimated_duration_padded} min`, task.due_at && `due ${new Date(task.due_at).toLocaleDateString()}`]
-    .filter(Boolean).join(" · ");
+  const when = task.scheduled_start && new Date(task.scheduled_start);
+  const meta = [
+    task.estimated_duration_padded && `~${task.estimated_duration_padded} min`,
+    when && `reminder ${when.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`,
+    task.due_at && `due ${new Date(task.due_at).toLocaleDateString()}`,
+  ].filter(Boolean).join(" · ");
   return (
     <Card>
       <h3 className="text-lg font-semibold">{showOriginal || !reframed ? task.raw_input_text : task.reframed_title}</h3>
