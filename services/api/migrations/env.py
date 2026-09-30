@@ -16,10 +16,10 @@ config = context.config
 if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name)  # skipped when the API runs migrations, so uvicorn keeps its logging
 
-from app.db import DATABASE_URL, Base  # noqa: E402
+from app.db import ASYNC_DATABASE_URL, CONNECT_ARGS, Base  # noqa: E402
 
 target_metadata = Base.metadata
-config.set_main_option("sqlalchemy.url", DATABASE_URL.replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", ASYNC_DATABASE_URL.replace("%", "%%"))
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -68,6 +68,7 @@ async def run_async_migrations() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=CONNECT_ARGS,  # hosted Postgres needs TLS
     )
 
     async with connectable.connect() as connection:

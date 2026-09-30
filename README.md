@@ -105,6 +105,31 @@ cd services/api && uv run python scripts/gen_vapid.py   # paste both lines into 
 Phone push needs a development build and an EAS project id (Expo's push service is free); in Expo Go the
 app falls back to local notifications.
 
+## Live on Vercel
+
+| | |
+|---|---|
+| Web | https://overclock-gold-nine.vercel.app |
+| API | https://overclock-api.vercel.app |
+| Database | Neon Postgres (Vercel Marketplace) |
+
+Two Vercel projects from this one repo: `overclock` (root directory `apps/web`) and `overclock-api`
+(`services/api`, FastAPI on Python). They can't be one project with Vercel Services, because services
+reject Edge functions and Clerk's middleware is Edge-only on Next 15.
+
+Deploy either again with `npx vercel deploy --prod` from the repo root, or from `services/api`.
+Migrations are not run at startup in the cloud — apply them from a machine that has the Neon URL:
+
+```sh
+cd services/api
+DATABASE_URL="$(grep -m1 '^DATABASE_URL_UNPOOLED=' ../../.env.local | cut -d= -f2-)" uv run alembic upgrade head
+```
+
+**Reminder delivery is limited on Vercel's free plan.** No process can run continuously, so a cron job
+calls `/api/v1/tick` (guarded by `CRON_SECRET`) to send due reminders and retry failed reframes — but
+Hobby allows only one cron run per day. Until that's addressed, cloud reminders arrive once daily; the
+local setup, which runs the loop every 30s, is unaffected.
+
 ## Deploying
 
 Both services are plain Docker images, so any host that runs containers works — including your own machine:

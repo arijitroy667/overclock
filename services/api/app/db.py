@@ -25,11 +25,11 @@ def _for_asyncpg(url: str) -> tuple[str, dict]:
     return urlunsplit(parts._replace(query=urlencode(params))), connect_args
 
 
-_url, _connect_args = _for_asyncpg(DATABASE_URL)
+ASYNC_DATABASE_URL, CONNECT_ARGS = _for_asyncpg(DATABASE_URL)
 # DB_POOL=none: a connection per use. Only for tests, where the WebSocket test client runs handlers on
 # its own event loop and pooled asyncpg connections belong to the loop that opened them.
 engine = create_async_engine(
-    _url, connect_args=_connect_args, **({"poolclass": NullPool} if os.environ.get("DB_POOL") == "none" else {})
+    ASYNC_DATABASE_URL, connect_args=CONNECT_ARGS, **({"poolclass": NullPool} if os.environ.get("DB_POOL") == "none" else {})
 )
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
