@@ -2,6 +2,7 @@
 import os
 import uuid
 from datetime import date, datetime, timezone
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from sqlalchemy import JSON, Date, DateTime, ForeignKey, NullPool, String, Text, UniqueConstraint
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -9,9 +10,27 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://overclock:overclock@localhost:5433/overclock")
 
+
+def _for_asyncpg(url: str) -> tuple[str, dict]:
+    """Hosted Postgres hands out libpq URLs; asyncpg needs its own scheme and rejects libpq-only params."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            url = "postgresql+asyncpg://" + url[len(prefix):]
+            break
+    parts = urlsplit(url)
+    params = dict(parse_qsl(parts.query))
+    sslmode = params.pop("sslmode", None)
+    params.pop("channel_binding", None)  # libpq-only, and asyncpg errors on it
+    connect_args = {"ssl": True} if sslmode and sslmode != "disable" else {}
+    return urlunsplit(parts._replace(query=urlencode(params))), connect_args
+
+
+_url, _connect_args = _for_asyncpg(DATABASE_URL)
 # DB_POOL=none: a connection per use. Only for tests, where the WebSocket test client runs handlers on
 # its own event loop and pooled asyncpg connections belong to the loop that opened them.
-engine = create_async_engine(DATABASE_URL, **({"poolclass": NullPool} if os.environ.get("DB_POOL") == "none" else {}))
+engine = create_async_engine(
+    _url, connect_args=_connect_args, **({"poolclass": NullPool} if os.environ.get("DB_POOL") == "none" else {})
+)
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 

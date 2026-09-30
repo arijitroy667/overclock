@@ -379,3 +379,45 @@ def test_insights_rank_reframe_styles(client):
     insights = client.get("/api/v1/insights/weekly", headers=h()).json()
     assert insights["best_lever"]["rate"] == 0.67 and insights["weakest_lever"]["rate"] == 0.67
     assert {row["lever"] for row in insights["levers_ranked"]} == {"play", "urgency"}
+
+
+def test_rate_limit_without_redis(monkeypatch):
+    """Deployments with one API instance need no Redis; the limit still holds."""
+    import anyio
+    import pytest as _pytest
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(main, "_redis", None)
+    monkeypatch.setattr(main, "RATE_LIMIT_PER_MIN", 3)
+    main._local_hits.clear()
+
+    async def hammer():
+        for _ in range(main.RATE_LIMIT_PER_MIN):
+            await main.rate_limit("noisy")
+        with _pytest.raises(HTTPException) as too_many:
+            await main.rate_limit("noisy")
+        assert too_many.value.status_code == 429
+        await main.rate_limit("someone-else")  # other users are unaffected
+
+    anyio.run(hammer)
+
+
+def test_cron_tick_requires_the_secret(client, monkeypatch):
+    """The scheduler endpoint is reachable without a user session, so the secret is the only gate."""
+    assert client.post("/api/v1/tick").status_code == 503  # no secret configured: disabled
+    monkeypatch.setattr(main, "CRON_SECRET", "s3cret")
+    assert client.post("/api/v1/tick").status_code == 401
+    assert client.post("/api/v1/tick", headers={"authorization": "Bearer wrong"}).status_code == 401
+    ok = client.post("/api/v1/tick", headers={"authorization": "Bearer s3cret"})
+    assert ok.status_code == 200 and set(ok.json()) == {"reminders_sent", "reframes_retried"}
+
+
+def test_hosted_database_urls_are_made_asyncpg_friendly():
+    """Neon and friends hand out libpq URLs; asyncpg needs its own scheme and chokes on libpq-only params."""
+    from app.db import _for_asyncpg
+
+    url, args = _for_asyncpg("postgres://u:p@ep-x.neon.tech/db?sslmode=require&channel_binding=require")
+    assert url == "postgresql+asyncpg://u:p@ep-x.neon.tech/db" and args == {"ssl": True}
+
+    url, args = _for_asyncpg("postgresql+asyncpg://overclock:overclock@localhost:5433/overclock")
+    assert url.endswith("/overclock") and args == {}  # local URLs are left alone

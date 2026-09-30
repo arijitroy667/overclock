@@ -29,6 +29,7 @@ CLERK_JWKS_URL = os.environ.get("CLERK_JWKS_URL")
 CLERK_AUTHORIZED_PARTIES = {o for o in os.environ.get("CLERK_AUTHORIZED_PARTIES", "http://localhost:3000").split(",") if o}
 DEV_AUTH_USER = os.environ.get("DEV_AUTH_USER")  # local only: every request is this user
 RATE_LIMIT_PER_MIN = int(os.environ.get("RATE_LIMIT_PER_MIN", "120"))
+CRON_SECRET = os.environ.get("CRON_SECRET", "")  # set on Vercel; the scheduler loop runs instead locally
 GUARDRAIL_AFTER_MIN = 120  # §7 Pillar 4: gentle full-screen interrupt after 2h continuous
 RESURFACE_AFTER = timedelta(days=1)  # §15: fixed interval, adaptive spacing is Phase 2
 DAILY_XP_CAP = 100  # §3.6: bounded progression, a reachable end state per day
@@ -37,7 +38,10 @@ HYPERFOCUS_AFTER_MIN = 45  # §7 Pillar 4: sustained single-task engagement befo
 CRISIS_OVERUSE_AFTER = 5  # crisis sprints in 14 days before we mention the pattern
 
 _jwks = jwt.PyJWKClient(CLERK_JWKS_URL) if CLERK_JWKS_URL else None
-_redis = aioredis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+# Redis is optional: with one API instance an in-process counter is equivalent, and it means one less
+# service to host. Set REDIS_URL once there are several instances, or the limit applies per instance.
+_redis = aioredis.from_url(os.environ["REDIS_URL"]) if os.environ.get("REDIS_URL") else None
+_local_hits: dict[str, int] = {}
 
 
 @asynccontextmanager
@@ -99,14 +103,21 @@ def _user_id_from_token(token: str) -> str:
 
 
 async def rate_limit(user_id: str) -> None:
-    key = f"rl:{user_id}:{int(now().timestamp() // 60)}"
-    try:
-        count = await _redis.incr(key)
-        if count == 1:
-            await _redis.expire(key, 60)
-    except aioredis.RedisError as e:
-        log.error("rate limiter unavailable, failing open: %s", e)
-        return
+    minute = int(now().timestamp() // 60)
+    key = f"rl:{user_id}:{minute}"
+    if _redis is None:
+        if not _local_hits.get(str(minute)):
+            _local_hits.clear()  # a new minute: drop last minute's counters
+            _local_hits[str(minute)] = 1
+        count = _local_hits[key] = _local_hits.get(key, 0) + 1
+    else:
+        try:
+            count = await _redis.incr(key)
+            if count == 1:
+                await _redis.expire(key, 60)
+        except aioredis.RedisError as e:
+            log.error("rate limiter unavailable, failing open: %s", e)
+            return
     if count > RATE_LIMIT_PER_MIN:
         raise HTTPException(429, "Slow down a little — try again in a minute")
 
@@ -722,6 +733,16 @@ async def delete_me(me: Me, db: Db):
         await db.execute(stmt)
     await db.commit()
     return {"deleted": True}
+
+
+@api.api_route("/tick", methods=["GET", "POST"])
+async def tick(request: Request):
+    """Does one scheduler pass. On Vercel a cron job calls this, since no loop can run between requests."""
+    if not CRON_SECRET:
+        raise HTTPException(503, "No cron secret configured")
+    if request.headers.get("authorization") != f"Bearer {CRON_SECRET}":
+        raise HTTPException(401, "Not authorized")
+    return {"reminders_sent": await scheduler.deliver_due(), "reframes_retried": await scheduler.retry_reframes()}
 
 
 @app.get("/health")
