@@ -582,6 +582,14 @@ async def _weekly_metrics(me: User, db: AsyncSession) -> dict:
     flow_hours = Counter(start.astimezone(tz).hour for start, _, _ in flow)
     flow_categories = Counter(category for _, _, category in flow if category)
 
+    # §7 Pillar 10: show which reframe styles actually work for this person
+    levers = await reframing.lever_stats(db, me.id)
+    ranked = sorted(
+        ({"lever": lever, "started": started, "reframed": total, "rate": round(started / total, 2)}
+         for lever, (started, total) in levers.items() if total >= 3),
+        key=lambda row: row["rate"], reverse=True,
+    )
+
     crisis_recently = await db.scalar(
         select(func.count()).select_from(FocusSession).where(
             FocusSession.user_id == me.id,
@@ -602,6 +610,9 @@ async def _weekly_metrics(me: User, db: AsyncSession) -> dict:
         "xp_daily_cap": DAILY_XP_CAP,
         "energy_by_day": {d: round(sum(v) / len(v), 1) for d, v in sorted(by_day.items())},
         # §7 Pillar 8: surface chronic crisis-mode use honestly; living in crunch is a burnout risk, not a strategy
+        "levers_ranked": ranked,
+        "best_lever": ranked[0] if ranked else None,
+        "weakest_lever": ranked[-1] if len(ranked) > 1 else None,
         # §7 Pillar 4: learn to engineer the on-ramp instead of waiting for flow to happen
         "hyperfocus_sessions_14d": len(flow),
         "hyperfocus_peak_hour": flow_hours.most_common(1)[0][0] if flow_hours else None,
@@ -624,7 +635,6 @@ async def reflection(me: Me, db: Db, regenerate: bool = False):
         return {"week_start": week_start, "text": existing.generated_text}
 
     metrics = await _weekly_metrics(me, db)
-    metrics["levers"] = {lever: {"started": started, "reframed": total} for lever, (started, total) in (await reframing.lever_stats(db, me.id)).items()}
     text = await reflection_agent.summarize(metrics)
     if not text:
         raise HTTPException(503, "Couldn’t write your reflection just now. Try again in a bit.")

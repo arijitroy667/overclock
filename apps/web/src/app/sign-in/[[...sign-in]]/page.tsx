@@ -1,9 +1,11 @@
 import { SignIn } from "@clerk/nextjs";
+import Link from "next/link";
 
 export default function SignInPage() {
   return (
-    <main className="grid min-h-screen place-items-center p-4">
+    <main className="grid min-h-screen place-items-center gap-4 p-4">
       <SignIn />
+      <Link href="/welcome" className="text-sm text-muted underline">What is Overclock?</Link>
     </main>
   );
 }

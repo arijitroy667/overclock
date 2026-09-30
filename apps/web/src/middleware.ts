@@ -1,10 +1,15 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-const isPublic = createRouteMatcher(["/sign-in(.*)", "/api/v1(.*)"]); // /api/v1 is proxied; FastAPI checks the token itself
+// /api/v1 is proxied to FastAPI, which checks the token itself.
+const isPublic = createRouteMatcher(["/sign-in(.*)", "/welcome", "/api/v1(.*)"]);
 
 export default clerkMiddleware(
   async (auth, req) => {
-    if (!isPublic(req)) await auth.protect();
+    if (isPublic(req)) return;
+    const { userId } = await auth();
+    // Strangers get the landing page, not a bare sign-in box.
+    if (!userId) return NextResponse.redirect(new URL("/welcome", req.url));
   },
   { signInUrl: "/sign-in" },
 );

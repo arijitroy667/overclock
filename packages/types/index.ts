@@ -23,6 +23,9 @@ export type Insights = {
   xp_today: number;
   xp_daily_cap: number;
   energy_by_day: Record<string, number>;
+  levers_ranked: LeverStat[];
+  best_lever: LeverStat | null;
+  weakest_lever: LeverStat | null;
   hyperfocus_sessions_14d: number;
   hyperfocus_peak_hour: number | null;
   hyperfocus_top_category: string | null;
@@ -30,6 +33,7 @@ export type Insights = {
   crisis_overuse: boolean;
 };
 export type Idea = { id: string; text: string; created_at: string; promoted_task_id: string | null };
+export type LeverStat = { lever: string; started: number; reframed: number; rate: number };
 export type Preferences = { calm_mode: boolean; dyslexia_font: boolean; reminder_offsets: number[] };
 export type Me = { id: string; onboarded: boolean; disclaimer: string; preferences: Preferences };
 

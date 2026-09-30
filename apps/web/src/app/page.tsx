@@ -10,6 +10,15 @@ import { dictate, dictationSupported } from "@/lib/dictation";
 
 const ENERGY = ["Running on fumes", "Low", "Okay", "Good", "Charged up"];
 
+const LEVER_WORDS: Record<string, string> = {
+  play: "playful framing",
+  challenge: "a challenge",
+  novelty: "a fresh angle",
+  urgency: "a countdown",
+  interest: "the interesting part",
+};
+
+
 export default function Dashboard() {
   const [me, setMe] = useState<Me | null>(null);
   const [offline, setOffline] = useState(false);
@@ -262,6 +271,17 @@ function InsightsPanel({ data }: { data: Insights }) {
         <h2 className="font-semibold">Finished this week</h2>
         <p>{data.completion_rate === null ? "Nothing captured yet" : `${Math.round(data.completion_rate * 100)}% of what you captured`}</p>
       </Card>
+      {data.best_lever && (
+        <Card>
+          <h2 className="font-semibold">What gets you started</h2>
+          <p className="text-sm text-muted">
+            {LEVER_WORDS[data.best_lever.lever] ?? data.best_lever.lever} works best so far —
+            you started {data.best_lever.started} of {data.best_lever.reframed} tasks framed that way.
+            {data.weakest_lever && data.weakest_lever.lever !== data.best_lever.lever &&
+              ` ${LEVER_WORDS[data.weakest_lever.lever] ?? data.weakest_lever.lever} lands least often; Overclock leans on it less.`}
+          </p>
+        </Card>
+      )}
       {data.hyperfocus_sessions_14d > 0 && (
         <Card>
           <h2 className="font-semibold">Flow shows up</h2>

@@ -6,6 +6,14 @@ import { api, Insights as Data } from '@/api';
 import { radius, space, useTheme } from '@/theme';
 import { Card, Screen, T } from '@/ui';
 
+const LEVER_WORDS: Record<string, string> = {
+  play: "playful framing",
+  challenge: "a challenge",
+  novelty: "a fresh angle",
+  urgency: "a countdown",
+  interest: "the interesting part",
+};
+
 export default function Insights() {
   const t = useTheme();
   const [data, setData] = useState<Data | null>(null);
@@ -39,6 +47,18 @@ export default function Insights() {
           {todayDone ? "Today's XP is full. That's a real finish line. Rest counts too." : `${data.xp_today} / ${data.xp_daily_cap} XP today`}
         </T>
       </Card>
+      {data.best_lever && (
+        <Card>
+          <T kind="h2">What gets you started</T>
+          <T kind="muted">
+            {LEVER_WORDS[data.best_lever.lever] ?? data.best_lever.lever} works best so far — you started{' '}
+            {data.best_lever.started} of {data.best_lever.reframed} tasks framed that way.
+            {data.weakest_lever && data.weakest_lever.lever !== data.best_lever.lever
+              ? ` ${LEVER_WORDS[data.weakest_lever.lever] ?? data.weakest_lever.lever} lands least often; Overclock leans on it less.`
+              : ''}
+          </T>
+        </Card>
+      )}
       {data.hyperfocus_sessions_14d > 0 && (
         <Card>
           <T kind="h2">Flow shows up</T>

@@ -195,7 +195,7 @@ def test_weekly_reflection_is_written_once(client):
     assert first["text"] == "Nice week. 1"
     assert client.get("/api/v1/insights/reflection", headers=h()).json()["text"] == "Nice week. 1"  # cached, no second call
     assert client.get("/api/v1/insights/reflection?regenerate=true", headers=h()).json()["text"] == "Nice week. 2"
-    assert main.reflection_calls[-1]["levers"]  # the agent sees which levers got tasks started
+    assert "levers_ranked" in main.reflection_calls[-1]  # the agent sees which levers get tasks started
     assert client.get("/api/v1/me/export", headers=h()).json()["reflections"][0]["generated_text"] == "Nice week. 2"
 
 
@@ -358,3 +358,24 @@ def test_failed_reframe_is_retried_later(client, monkeypatch):
     client.portal.call(age_attempt)
     assert client.portal.call(scheduler.retry_reframes) == 1
     assert client.get("/api/v1/tasks", headers=h()).json()[0]["reframed_title"] == "Later, but reframed"
+
+
+def test_insights_rank_reframe_styles(client):
+    """§7 Pillar 10: the dashboard shows which reframe styles work, once there is enough to judge."""
+    from sqlalchemy import select
+
+    from app.db import Session as DbSession, Task
+
+    ids = [client.post("/api/v1/tasks/capture", json={"text": f"task {i}"}, headers=h()).json()["id"] for i in range(6)]
+
+    async def set_levers():
+        async with DbSession() as db:
+            for task_id, lever, status in zip(ids, ["play"] * 3 + ["urgency"] * 3, ["done", "done", "inbox"] * 2):
+                task = await db.scalar(select(Task).where(Task.id == task_id))
+                task.applied_pinch_lever, task.status = lever, status
+            await db.commit()
+
+    client.portal.call(set_levers)
+    insights = client.get("/api/v1/insights/weekly", headers=h()).json()
+    assert insights["best_lever"]["rate"] == 0.67 and insights["weakest_lever"]["rate"] == 0.67
+    assert {row["lever"] for row in insights["levers_ranked"]} == {"play", "urgency"}
