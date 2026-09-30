@@ -1,10 +1,14 @@
 {
   "name": "overclock",
   "private": true,
-  "workspaces": ["apps/web", "packages/types"],
+  "workspaces": [
+    "apps/web",
+    "packages/types"
+  ],
   "scripts": {
     "build": "npm run build --workspace apps/web",
     "dev": "npm run dev --workspace apps/web",
-    "lint": "npm run lint --workspace apps/web"
+    "lint": "npm run lint --workspace apps/web",
+    "typecheck": "npm run typecheck --workspace apps/web"
   }
 }

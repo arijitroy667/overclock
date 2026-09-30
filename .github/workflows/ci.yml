@@ -43,9 +43,6 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
     env:
       # Builds must not need real credentials; the running app reads these from its host.
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZHVtbXktZm9yLWJ1aWxkLmNsZXJrLmFjY291bnRzLmRldiQ=
@@ -57,9 +54,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
-      - run: npm ci
-      - run: npx tsc --noEmit
+          cache-dependency-path: package-lock.json
+      - run: npm ci               # npm workspaces: installs apps/web and packages/types
+      - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
 
